@@ -1,0 +1,9 @@
+discord.py
+youtube_dl
+beautifulsoup4
+imageio
+pillow
+pyyaml
+pymongo
+peewee
+pynacl
