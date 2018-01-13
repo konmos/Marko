@@ -2,8 +2,9 @@ import os
 import io
 import time
 import random
-import aiohttp
+import mimetypes
 
+import aiohttp
 import discord
 import peewee as pe
 from PIL import Image, ImageDraw, ImageFont
@@ -213,6 +214,23 @@ class Ranking(BasePlugin):
     @command(regex='^background <?(.*?)>?$', description='set a background for your profile',
              usage='background <url>', call_on_message=True)
     async def background(self, message, url):
+        try:
+            with aiohttp.ClientSession() as client:
+                async with client.head(url) as r:
+                    size = r.headers.get('Content-Length', 0)
+                    mimetype = r.headers.get('Content-Type')
+
+            if not mimetype:
+                mimetype = mimetypes.guess_type(url=url)[0]
+
+            if size > 2*1024*1024 or not mimetype.startswith('image'):
+                # We'll set a 2MB limit and the file must be an image.
+                # This should do for now, but we'll probably need to make this more strict
+                # in the future.
+                return
+        except:
+            pass
+
         user = RankedUser.select(RankedUser).where(
             RankedUser.user_id == message.author.id, RankedUser.server == message.server.id
         )
