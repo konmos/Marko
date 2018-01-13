@@ -6,7 +6,7 @@ import asyncio
 from discord import Permissions, Forbidden
 
 
-def command(*, regex='', usage='', description='', name='', call_on_message=False, su=False, perms=None):
+def command(*, regex='', usage='', description='', name='', call_on_message=False, su=False, perms=None, cooldown=None):
     '''
     Utility function to make creating commands easier. Takes care of common tasks such as
     pattern matching, permissions, roles, usages, etc... When a message matches the `regex`,
@@ -39,9 +39,20 @@ def command(*, regex='', usage='', description='', name='', call_on_message=Fals
                     }
                 )
 
-                history = None
+                history = {}
             else:
                 history = dict([(cmd['name'], cmd['timestamp']) for cmd in doc['commands']])
+
+            # Check cooldown
+            if cooldown:
+                timestamp = history.get(wrapper.info['name'], None)
+
+                if timestamp is not None and timestamp + cooldown > time.time():
+                    await self.mbot.send_message(
+                        message.channel,
+                        f'**Whoah! You\'re doing that too often {message.author.mention}...**'
+                    )
+                    return
 
             # Check if the user has necessary permissions.
             if perms is not None:

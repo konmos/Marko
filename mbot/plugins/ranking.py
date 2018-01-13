@@ -212,7 +212,7 @@ class Ranking(BasePlugin):
             update_bio.execute()
 
     @command(regex='^background <?(.*?)>?$', description='set a background for your profile',
-             usage='background <url>', call_on_message=True)
+             usage='background <url>', call_on_message=True, cooldown=120)
     async def background(self, message, url):
         try:
             with aiohttp.ClientSession() as client:
