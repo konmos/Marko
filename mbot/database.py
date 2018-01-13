@@ -63,7 +63,8 @@ class Mongo(object):
         self.client = MongoClient(config.mongo.host, config.mongo.port)
 
         self._config_db = self.client.config
-        self.config = self._config_db.collection
+        self.config = self._config_db.config
+        self.cmd_history = self._config_db.cmd_history
 
         self._stats_db = self.client.stats
         self.stats = self._stats_db.collection

@@ -1,4 +1,5 @@
 import re
+import time
 from functools import wraps
 
 import asyncio
@@ -24,6 +25,23 @@ def command(*, regex='', usage='', description='', name='', call_on_message=Fals
             # this gets called from outside the loop.
             if not match:
                 return
+
+            # Check if command history exists. Create it if not.
+            doc = self.mbot.mongo.cmd_history.find_one(
+                {'user_id': message.author.id}
+            )
+
+            if doc is None:
+                self.mbot.mongo.cmd_history.insert_one(
+                    {
+                        'user_id': message.author.id,
+                        'commands': []
+                    }
+                )
+
+                history = None
+            else:
+                history = dict([(cmd['name'], cmd['timestamp']) for cmd in doc['commands']])
 
             # Check if the user has necessary permissions.
             if perms is not None:
@@ -53,6 +71,19 @@ def command(*, regex='', usage='', description='', name='', call_on_message=Fals
 
             if call_on_message:
                 await self.on_message(message)
+
+            # Update timestamps
+            if wrapper.info['name'] not in history:
+                self.mbot.mongo.cmd_history.update_one(
+                    {'user_id': message.author.id},
+                    {'$push': {'commands': {'name': wrapper.info['name'], 'timestamp': time.time()}}}
+                )
+            else:
+                tstamp = time.time()
+                self.mbot.mongo.cmd_history.update_one(
+                    {'user_id': message.author.id, 'commands': {'$elemMatch': {'name': wrapper.info['name']}}},
+                    {'$set': {'commands.$.timestamp': tstamp}}
+                )
 
         wrapper._command = True
         wrapper._func = func
