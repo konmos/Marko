@@ -39,7 +39,7 @@ class SpoilerBot(BasePlugin):
         buffer.seek(0)
         return buffer
 
-    @command(regex='^spoiler (.*?)$')
+    @command(regex='^spoiler (.*?)$', cooldown=5, usage='spoiler <msg>', description='send some secret messages')
     async def spoiler(self, message, spoiler):
         try:
             await self.mbot.delete_message(message)

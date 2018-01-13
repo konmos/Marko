@@ -7,7 +7,7 @@ from ..command import command
 
 
 class SteamSig(BasePlugin):
-    @command(regex='^steam (.*?)$', description='grab a steam sig', usage='steam [id]')
+    @command(regex='^steam (.*?)$', description='grab a steam sig', usage='steam [id]', cooldown=5)
     async def steam(self, message, steamid):
         with aiohttp.ClientSession() as client:
             async with client.post('https://steamprofile.com', data={'steamid': steamid}) as r:

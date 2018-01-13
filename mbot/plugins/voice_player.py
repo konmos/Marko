@@ -90,19 +90,19 @@ class VoicePlayer(BasePlugin):
         else:
             await self.join_voice_channel(message.server, channel_obj=message.author.voice.voice_channel)
 
-    @command(regex='^play <?(.*?)>?(?: (.*?))?$', description='stream audio from a url', su=True,
-             usage='play <url> [channel]')
+    @command(regex='^play <?(.*?)>?(?: (.*?))?$', description='stream audio from a url',
+             usage='play <url> [channel]', cooldown=5)
     async def play(self, message, url, channel_name=None):
         await self.play_url(message, url, channel_name)
 
-    @command(regex='^stop$', description='stop the player', su=True, usage='stop')
+    @command(regex='^stop$', description='stop the player', usage='stop')
     async def stop(self, message):
         if self.players[message.server.id].player is not None:
             self.players[message.server.id].player.stop()
             await message.server.voice_client.disconnect()
             del self.players[message.server.id]
 
-    @command(regex='^volume (\d+\.\d+)$', description='adjust the volume of the player', su=True, usage='volume <%>')
+    @command(regex='^volume (\d+\.\d+)$', description='adjust the volume of the player', usage='volume <%>')
     async def volume(self, message, vol):
         if self.players[message.server.id].player is not None:
             self.players[message.server.id].player.volume = float(vol)
@@ -136,8 +136,8 @@ class VoicePlayer(BasePlugin):
             self.players[server.id].done_playing.clear()
             await asyncio.sleep(5)
 
-    @command(regex='^queue start(?: (.*?))?$', su=True, name='queue start', description='start the queue',
-             usage='queue start [channel]')
+    @command(regex='^queue start(?: (.*?))?$', name='queue start', description='start the queue',
+             usage='queue start [channel]', cooldown=5)
     async def queue_play(self, message, channel_name=None):
         if message.server.voice_client is None or not message.server.voice_client.is_connected():
             await self.join_voice_channel(message.server, channel_name)

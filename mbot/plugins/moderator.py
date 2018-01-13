@@ -3,7 +3,8 @@ from ..command import command
 
 
 class Moderator(BasePlugin):
-    @command(regex='^purge (\d*?)$', description='delete a number of messages', usage='purge <limit>', perms=0x2000)
+    @command(regex='^purge (\d*?)$', description='delete a number of messages', usage='purge <limit>',
+             perms=8192, cooldown=5)
     async def purge(self, message, limit):
         limit = int(limit)
         if limit > 100:

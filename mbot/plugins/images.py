@@ -1,3 +1,8 @@
+# TODO:
+# Rework this entire plugin.
+# It is a forgotten remnant of the early version of the bot.
+
+"""
 import random
 import aiohttp
 from bs4 import BeautifulSoup
@@ -12,8 +17,7 @@ HEADERS = {'User-Agent': r'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:40.0) Gecko/20
 class ImageEngine(BasePlugin):
     '''
     Extracts all imgur links from chosen subreddits. *Only supports imgur at the moment!!*
-    This simply parses html and grabs random links. For more advanced imgur operations
-    use the imgur plugin which uses the API.
+    This simply parses html and grabs random links.
     '''
     def __init__(self, mbot):
         super().__init__(mbot)
@@ -57,3 +61,4 @@ class ImageEngine(BasePlugin):
              description='return random image from any subreddit')
     async def image_cmd(self, message, subreddit):
         await self.image(message, subreddit)
+"""

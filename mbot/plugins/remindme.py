@@ -43,11 +43,11 @@ class ReminderBot(BasePlugin):
 
             await asyncio.sleep(60)
 
-    @command(regex='^remindme (\d+) (days?|hours?|minutes?) (.*?)$', description='set a friendly reminder',
-             usage='remindme <n> (days|hours|minutes) <reminder>')
+    @command(regex='^remindme (?:in )?(\d+) (days?|hours?|minutes?) (.*?)$', description='set a friendly reminder',
+             usage='remindme <n> (days|hours|minutes) <reminder>', cooldown=10)
     async def remindme(self, message, num=None, unit=None, msg=None):
         reminder = Reminder.create(
-            user_id = str(message.author.id),
+            user_id = message.author.id,
             sleep = self.time_conversion[unit] * int(num),
             timestamp = time.time(),
             reminder_msg = msg

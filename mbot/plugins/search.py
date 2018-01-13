@@ -44,7 +44,7 @@ class SearchEngine(BasePlugin):
 
         return j
 
-    @command(regex='^search (.*?)$')
+    @command(regex='^search (.*?)$', cooldown=5, usage='search <term>', description='search the web')
     async def search(self, message, query):
         result = await self.search_ddg(q=query, format='json', no_html=1, skip_disambig=1, no_redirect=1)
 

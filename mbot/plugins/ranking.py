@@ -106,7 +106,7 @@ class Ranking(BasePlugin):
         total_xp = str(user.get().xp) if user.exists() else '0'
         await self.mbot.send_message(message.channel, f'{message.author.mention} **TOTAL XP: {total_xp}**')
 
-    @command(description='view your (legacy) ranking profile', usage='old_profile', call_on_message=True)
+    @command(description='view your (legacy) ranking profile', usage='old_profile', call_on_message=True, cooldown=5)
     async def old_profile(self, message):
         user = RankedUser.select().where(
             RankedUser.user_id == message.author.id, RankedUser.server == message.server.id
@@ -166,7 +166,7 @@ class Ranking(BasePlugin):
 
         return profile_card
 
-    @command(description='view your ranking profile', usage='profile', call_on_message=True)
+    @command(description='view your ranking profile', usage='profile', call_on_message=True, cooldown=20)
     async def profile(self, message):
         user = RankedUser.select().where(
             RankedUser.user_id == message.author.id, RankedUser.server == message.server.id
@@ -198,7 +198,8 @@ class Ranking(BasePlugin):
         profile = await self.gen_profile(xp, message.author.name, bio, bckg_buffer, profile_buffer, _message=message)
         await self.mbot.send_file(message.channel, profile, filename='profile.png')
 
-    @command(regex='^bio (.*?)$', description='set bio for (beta) profile', usage='bio <bio>', call_on_message=True)
+    @command(regex='^bio (.*?)$', description='set bio for (beta) profile', usage='bio <bio>',
+             call_on_message=True, cooldown=60)
     async def bio(self, message, bio):
         user = RankedUser.select(RankedUser).where(
             RankedUser.user_id == message.author.id, RankedUser.server == message.server.id
@@ -212,7 +213,7 @@ class Ranking(BasePlugin):
             update_bio.execute()
 
     @command(regex='^background <?(.*?)>?$', description='set a background for your profile',
-             usage='background <url>', call_on_message=True, cooldown=120)
+             usage='background <url>', call_on_message=True, cooldown=60)
     async def background(self, message, url):
         try:
             with aiohttp.ClientSession() as client:
@@ -242,7 +243,8 @@ class Ranking(BasePlugin):
 
             update_bckg.execute()
 
-    @command(description='view the top 10 ranked players in the server', usage='top', call_on_message=True)
+    @command(description='view the top 10 ranked players in the server', usage='top',
+             cooldown=5, call_on_message=True)
     async def top(self, message):
         top = []
         for x, ru in enumerate(
