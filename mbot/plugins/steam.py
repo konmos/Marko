@@ -1,6 +1,5 @@
-import re
-
 import aiohttp
+from bs4 import BeautifulSoup
 
 from ..plugin import BasePlugin
 from ..command import command
@@ -11,9 +10,14 @@ class SteamSig(BasePlugin):
     async def steam(self, message, steamid):
         with aiohttp.ClientSession() as client:
             async with client.post('https://steamprofile.com', data={'steamid': steamid}) as r:
-                sig = re.search('\d+\.png', await r.text(), re.M)
+                soup = BeautifulSoup(await r.text(), 'html.parser')
+
+                for meta in soup.find_all('meta'):
+                    if meta.get('property') == 'og:image:url':
+                        sig = meta.get('content')
+                        break
 
         await self.mbot.send_file(
             destination=message.channel,
-            fp=f'https://badges.steamprofile.com/profile/default/steam/{sig.group(0)}'
+            fp=f'https://badges.steamprofile.com/profile/default/steam/{sig}'
         )
