@@ -47,6 +47,12 @@ class mBot(discord.Client):
     async def send_file(self, destination, fp, *, filename=None, content=None, tts=False, force=False):
         '''Sends a message to the destination given with the file given.'''
 
+        # Update global statistics
+        self.mongo.stats.update_one(
+            {'scope': 'global'},
+            {'$inc': {'files_sent': 1}}
+        )
+
         if not force:
             # Check if we are in an ignored channel.
             if isinstance(destination, discord.Server):
@@ -87,6 +93,12 @@ class mBot(discord.Client):
 
     async def send_message(self, destination, content=None, *, tts=False, embed=None, force=False):
         '''Sends a message to the destination given with the content given.'''
+
+        # Update global statistics
+        self.mongo.stats.update_one(
+            {'scope': 'global'},
+            {'$inc': {'messages_sent': 1}}
+        )
 
         # The force argument should generally not be used. Ignored channels must be respected.
         # This argument is currently only used when an admin is managing ignored channels
@@ -152,6 +164,12 @@ class mBot(discord.Client):
         for server in self.servers:
             await self._create_config(server.id)
 
+        # Update global statistics
+        self.mongo.stats.update_one(
+            {'scope': 'global'},
+            {'$set': {'num_guilds': len(self.servers)}}
+        )
+
         await self.change_presence(game=discord.Game(name=f'in {len(self.servers)} servers'))
 
         for plugin in self.plugin_manager.plugins:
@@ -172,6 +190,12 @@ class mBot(discord.Client):
     async def on_message(self, message):
         '''Called when a message is created and sent to a server.'''
         log.debug(f'{sys._getframe().f_code.co_name} event triggered')
+
+        # Update global statistics
+        self.mongo.stats.update_one(
+            {'scope': 'global'},
+            {'$inc': {'messages_received': 1}}
+        )
 
         if message.channel.is_private:
             return
@@ -363,6 +387,13 @@ class mBot(discord.Client):
         log.debug(f'{sys._getframe().f_code.co_name} event triggered')
 
         await self._create_config(server.id)
+
+        # Update global statistics
+        self.mongo.stats.update_one(
+            {'scope': 'global'},
+            {'$inc': {'num_guilds': 1}}
+        )
+
         plugins = await self.plugin_manager.plugins_for_server(server.id)
 
         for plugin in plugins.values():

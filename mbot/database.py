@@ -68,3 +68,8 @@ class Mongo(object):
 
         self._stats_db = self.client.stats
         self.stats = self._stats_db.collection
+
+        # Create global stats document
+        _doc = self.stats.find_one({'scope': 'global'})
+        if not _doc:
+            self.stats.insert_one({'scope': 'global'})

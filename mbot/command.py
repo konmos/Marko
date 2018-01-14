@@ -43,6 +43,12 @@ def command(*, regex='', usage='', description='', name='', call_on_message=Fals
             else:
                 history = dict([(cmd['name'], cmd['timestamp']) for cmd in doc['commands']])
 
+            # Update global statistics
+            self.mbot.mongo.stats.update_one(
+                {'scope': 'global'},
+                {'$inc': {'commands_received': 1}}
+            )
+
             # Check cooldown
             if cooldown:
                 timestamp = history.get(wrapper.info['name'], None)
