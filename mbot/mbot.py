@@ -25,10 +25,6 @@ class mBot(discord.Client):
     def __init__(self, config, **kwargs):
         super().__init__(**kwargs)
 
-        self.plugin_manager = PluginManager(self)
-        self.plugin_manager.load_plugins()
-        self.plugin_manager.load_commands()
-
         # Default global config.
         self.config = config
         self.key = config.mbot.key
@@ -39,6 +35,10 @@ class mBot(discord.Client):
         # Load opus on Windows. On linux it should be already loaded.
         if os.name in ['nt', 'ce']:
             discord.opus.load_opus(name=opus_lib[str(struct.calcsize('P') * 8)])
+
+        self.plugin_manager = PluginManager(self)
+        self.plugin_manager.load_plugins()
+        self.plugin_manager.load_commands()
 
     def run(self, *args, **kwargs):
         '''Blocking call which runs the client using `self.key`.'''

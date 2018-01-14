@@ -18,3 +18,8 @@ mongo:
 superusers:
     - DISCORD_UID_OF_ADMIN_1
     - DISCORD_UID_OF_ADMIN_2
+
+plugins:
+  reddit:
+    client_id:
+    client_secret:

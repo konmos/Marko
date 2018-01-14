@@ -33,7 +33,9 @@ def main():
 
     args = vars(parser.parse_args())
 
+    # Set config.
     config = Config(args['config'])
+    os.environ['mbot_config'] = args['config']
 
     log.debug(f'starting bot instance on shard {args.get("shard_id", 0)}/{args.get("shard_num", 1)}')
     mBot(config, shard_id=args.get('shard_id', 0), shard_count=args.get('shard_num', 1)).run()

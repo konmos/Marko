@@ -7,6 +7,7 @@
           <option value="discord.message.Message.*" />
           <option value="_io.BytesIO.__await__" />
           <option value="bool.__await__" />
+          <option value="list.__await__" />
         </list>
       </option>
     </inspection_tool>

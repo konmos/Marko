@@ -45,4 +45,6 @@ class Config(object):
 
         self.superusers = [str(su) for su in self.yml['superusers']]
 
+        self.plugins = self.yml.get('plugins', {})
+
         log.debug(f'loaded config from {self._path}')
