@@ -1,7 +1,10 @@
 import sys
+import logging
 from collections import namedtuple
 
 import yaml
+
+log = logging.getLogger(__name__)
 
 
 class Config(object):
@@ -41,3 +44,5 @@ class Config(object):
         )
 
         self.superusers = [str(su) for su in self.yml['superusers']]
+
+        log.debug(f'loaded config from {self._path}')

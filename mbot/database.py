@@ -1,9 +1,11 @@
 import os
 import sqlite3
+import logging
 
 import peewee as pe
 from pymongo import MongoClient
 
+log = logging.getLogger(__name__)
 
 database_proxy = pe.Proxy()
 
@@ -52,6 +54,8 @@ class Database(object):
 
         self.db.connect()
 
+        log.debug(f'connected to {config.db.type} database {config.db.database}')
+
 
 class Mongo(object):
     '''
@@ -73,3 +77,5 @@ class Mongo(object):
         _doc = self.stats.find_one({'scope': 'global'})
         if not _doc:
             self.stats.insert_one({'scope': 'global'})
+
+        log.debug(f'connected to mongo instance at {config.mongo.host}:{config.mongo.port}')

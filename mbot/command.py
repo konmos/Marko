@@ -1,9 +1,12 @@
 import re
 import time
+import logging
 from functools import wraps
 
 import asyncio
 from discord import Permissions, Forbidden
+
+log = logging.getLogger(__name__)
 
 
 def command(*, regex='', usage='', description='', name='', call_on_message=False, su=False, perms=None, cooldown=None):
@@ -25,6 +28,8 @@ def command(*, regex='', usage='', description='', name='', call_on_message=Fals
             # this gets called from outside the loop.
             if not match:
                 return
+
+            log.debug(f'running command {wrapper.info["name"]} in server {message.server.id}')
 
             # Check if command history exists. Create it if not.
             doc = self.mbot.mongo.cmd_history.find_one(
@@ -82,6 +87,8 @@ def command(*, regex='', usage='', description='', name='', call_on_message=Fals
             try:
                 await func(self, message, *match.groups())
             except Forbidden:
+                log.error(f'forbidden to run command {wrapper.info["name"]} in server {message.server.id}')
+
                 msg = await self.mbot.send_message(message.channel, '*I cannot do that...* :cry:')
                 await asyncio.sleep(5)
                 await self.mbot.delete_message(msg)

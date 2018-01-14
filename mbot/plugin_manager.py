@@ -1,4 +1,5 @@
 import sys
+import logging
 import importlib.util
 
 import asyncio
@@ -6,6 +7,8 @@ import asyncio
 from .plugins import plugins
 from .utils import long_running_task
 from .plugin_registry import PluginRegistry
+
+log = logging.getLogger(__name__)
 
 
 class PluginManager(object):
@@ -37,14 +40,21 @@ class PluginManager(object):
 
     def load_plugins(self):
         '''Load all discovered plugins. This should always be the first method called.'''
+        log.debug('loading plugins')
+
         for plugin in self.discover_plugins():
             self.plugins.append(plugin(self.mbot))
+            log.debug(f'loaded {plugin.__class__.__name__} plugin')
 
     def load_commands(self):
         '''Load commands for all loaded plugins.'''
+        log.debug('loading commands')
+
         for plugin in self.plugins:
             for command in plugin.commands:
                 self.commands[command.info['name']] = (command.info['desc'], command.info['usage'], command)
+
+            log.debug(f'loaded commands for {plugin.__class__.__name__} plugin')
 
     async def reload_plugins(self):
         '''
@@ -52,6 +62,8 @@ class PluginManager(object):
         Any new plugins and commands are enabled by default.
         Any plugins and commands that were removed are automatically disabled.
         '''
+        log.debug('attempting to reload plugins')
+
         old_plugins = [plugin.__class__.__name__ for plugin in self.plugins]
         old_commands = list(self.commands.keys())
 
@@ -66,6 +78,8 @@ class PluginManager(object):
                 pass
 
         del PluginRegistry.plugins[:]
+
+        log.debug('cleared all plugins')
 
         # Reload all plugins and commands
         self.load_plugins()
@@ -88,6 +102,8 @@ class PluginManager(object):
                 for server in self.mbot.servers:
                     await self.disable_plugin(server.id, plugin)
 
+        log.debug('reloaded plugins')
+
         # Now, handle command creations / deletions.
         diff_c = set(old_commands) ^ set(new_commands)
 
@@ -101,7 +117,11 @@ class PluginManager(object):
                 for server in self.mbot.servers:
                     await self.disable_command(server.id, cmd)
 
+        log.debug('reloaded commands')
+
     def _plugins_for_server(self, server_id):
+        log.debug(f'fetching plugins for server {server_id}')
+
         ret = {}
 
         for plugin in self.plugins:
@@ -119,6 +139,8 @@ class PluginManager(object):
         return self._plugins_for_server(server_id)
 
     def _commands_for_server(self, server_id):
+        log.debug(f'fetching commands for server {server_id}')
+
         ret = {}
 
         for plugin in self.plugins:
@@ -144,6 +166,8 @@ class PluginManager(object):
 
     @long_running_task()
     def disable_plugin(self, server_id, plugin):
+        log.debug(f'disabling {plugin} plugin for server {server_id}')
+
         # Skip config plugin.
         if plugin == 'ConfigPlugin':
             return False
@@ -158,6 +182,8 @@ class PluginManager(object):
 
     @long_running_task()
     def enable_plugin(self, server_id, plugin):
+        log.debug(f'enabling {plugin} plugin for server {server_id}')
+
         # Skip config plugin.
         if plugin == 'ConfigPlugin':
             return False
@@ -190,6 +216,8 @@ class PluginManager(object):
 
     @long_running_task()
     def enable_command(self, server_id, command):
+        log.debug(f'enabling {command} command for server {server_id}')
+
         plugin_name = self._plugin_for_cmd(command)
 
         # Skip config plugin.
@@ -214,6 +242,8 @@ class PluginManager(object):
 
     @long_running_task()
     def disable_command(self, server_id, command):
+        log.debug(f'disabling {command} command for server {server_id}')
+
         plugin_name = self._plugin_for_cmd(command)
 
         # Skip config plugin.
