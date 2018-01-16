@@ -225,7 +225,7 @@ class ConfigPlugin(BasePlugin):
 
             await self.mbot.delete_message(msg)
 
-    @command(regex='^disable', name='disable', perms=0x8, description='disable a plugin or command',
+    @command(regex='^disable$', name='disable', perms=0x8, description='disable a plugin or command',
              usage='disable <ext>')
     async def disable_ext(self, message):
         with await self.mbot.plugin_manager.lock:
