@@ -1,3 +1,5 @@
+import asyncio
+
 from ..plugin import BasePlugin
 from ..command import command
 
@@ -83,88 +85,120 @@ class ConfigPlugin(BasePlugin):
             )
 
     async def disable_plugin(self, message):
-        m = await self.mbot.send_message(message.channel, '*Enter the name of the plugin you want to disable...*')
+        m = await self.mbot.send_message(
+            message.channel,
+            '*Enter the name of the plugin(s) you want to disable (separated by a comma)...*'
+        )
 
         plugin = await self.mbot.wait_for_message(
             author=message.author, channel=message.channel, timeout=30
         )
 
         if plugin.content:
-            ret = await self.mbot.plugin_manager.disable_plugin(message.server.id, plugin.content)
-
-            if ret:
-                await self.mbot.send_message(
-                    message.channel, f':ok_hand: **Successfully disabled the *{plugin.content}* plugin!**'
-                )
-            else:
-                await self.mbot.send_message(
-                    message.channel, f':cry: **Could not disable the *{plugin.content}* plugin!**'
-                )
-
             await self.mbot.delete_message(m)
+
+            for p in plugin.content.split(','):
+                p = p.lstrip().rstrip()
+
+                ret = await self.mbot.plugin_manager.disable_plugin(message.server.id, p)
+
+                if ret:
+                    await self.mbot.send_message(
+                        message.channel, f':ok_hand: **Successfully disabled the *{p}* plugin!**'
+                    )
+                else:
+                    await self.mbot.send_message(
+                        message.channel, f':cry: **Could not disable the *{p}* plugin!**'
+                    )
+
+                await asyncio.sleep(1)
 
     async def enable_plugin(self, message):
-        m = await self.mbot.send_message(message.channel, '*Enter the name of the plugin you want to enable...*')
+        m = await self.mbot.send_message(
+            message.channel,
+            '*Enter the name of the plugin(s) you want to enable (separated by a comma)...*'
+        )
 
         plugin = await self.mbot.wait_for_message(
             author=message.author, channel=message.channel, timeout=30
         )
 
         if plugin.content:
-            ret = await self.mbot.plugin_manager.enable_plugin(message.server.id, plugin.content)
-
-            if ret:
-                await self.mbot.send_message(
-                    message.channel, f':ok_hand: **Successfully enabled the *{plugin.content}* plugin!**'
-                )
-            else:
-                await self.mbot.send_message(
-                    message.channel, f':cry: **Could not enable the *{plugin.content}* plugin!**'
-                )
-
             await self.mbot.delete_message(m)
+
+            for p in plugin.content.split(','):
+                p = p.lstrip().rstrip()
+
+                ret = await self.mbot.plugin_manager.enable_plugin(message.server.id, p)
+
+                if ret:
+                    await self.mbot.send_message(
+                        message.channel, f':ok_hand: **Successfully enabled the *{p}* plugin!**'
+                    )
+                else:
+                    await self.mbot.send_message(
+                        message.channel, f':cry: **Could not enable the *{p}* plugin!**'
+                    )
+
+                await asyncio.sleep(1)
 
     async def enable_cmd(self, message):
-        m = await self.mbot.send_message(message.channel, '*Enter the name of the command you want to enable...*')
+        m = await self.mbot.send_message(
+            message.channel,
+            '*Enter the name of the command(s) you want to enable (separated by a comma)...*'
+        )
 
         cmd = await self.mbot.wait_for_message(
             author=message.author, channel=message.channel, timeout=30
         )
 
         if cmd.content:
-            ret = await self.mbot.plugin_manager.enable_command(message.server.id, cmd.content)
-
-            if ret:
-                await self.mbot.send_message(
-                    message.channel, f':ok_hand: **Successfully enabled the *{cmd.content}* command!**'
-                )
-            else:
-                await self.mbot.send_message(
-                    message.channel, f':cry: **Could not enable the *{cmd.content}* command!**'
-                )
-
             await self.mbot.delete_message(m)
+
+            for c in cmd.content.split(','):
+                c = c.lstrip().rstrip()
+
+                ret = await self.mbot.plugin_manager.enable_command(message.server.id, c)
+
+                if ret:
+                    await self.mbot.send_message(
+                        message.channel, f':ok_hand: **Successfully enabled the *{c}* command!**'
+                    )
+                else:
+                    await self.mbot.send_message(
+                        message.channel, f':cry: **Could not enable the *{c}* command!**'
+                    )
+
+                await asyncio.sleep(1)
 
     async def disable_cmd(self, message):
-        m = await self.mbot.send_message(message.channel, '*Enter the name of the command you want to disable...*')
+        m = await self.mbot.send_message(
+            message.channel,
+            '*Enter the name of the command(s) you want to disable (separated by a comma)...*'
+        )
 
         cmd = await self.mbot.wait_for_message(
             author=message.author, channel=message.channel, timeout=30
         )
 
         if cmd.content:
-            ret = await self.mbot.plugin_manager.disable_command(message.server.id, cmd.content)
-
-            if ret:
-                await self.mbot.send_message(
-                    message.channel, f':ok_hand: **Successfully disabled the *{cmd.content}* command!**'
-                )
-            else:
-                await self.mbot.send_message(
-                    message.channel, f':cry: **Could not disable the *{cmd.content}* command!**'
-                )
-
             await self.mbot.delete_message(m)
+
+            for c in cmd.content.split(','):
+                c = c.lstrip().rstrip()
+
+                ret = await self.mbot.plugin_manager.disable_command(message.server.id, c)
+
+                if ret:
+                    await self.mbot.send_message(
+                        message.channel, f':ok_hand: **Successfully disabled the *{c}* command!**'
+                    )
+                else:
+                    await self.mbot.send_message(
+                        message.channel, f':cry: **Could not disable the *{c}* command!**'
+                    )
+
+                await asyncio.sleep(1)
 
     @command(regex='^enable$', name='enable', perms=0x8, description='enable a plugin or command', usage='enable <ext>')
     async def enable_ext(self, message):
@@ -174,7 +208,7 @@ class ConfigPlugin(BasePlugin):
             [1] Plugin
             [2] Command```'''.strip('\t')
 
-            await self.mbot.send_message(message.channel, resp)
+            msg = await self.mbot.send_message(message.channel, resp)
 
             choice = await self.mbot.wait_for_message(
                 author=message.author, channel=message.channel,
@@ -189,6 +223,8 @@ class ConfigPlugin(BasePlugin):
             else:
                 await self.mbot.send_message(message.channel, f'{message.author.mention} *Try again...* :cry:')
 
+            await self.mbot.delete_message(msg)
+
     @command(regex='^disable', name='disable', perms=0x8, description='disable a plugin or command',
              usage='disable <ext>')
     async def disable_ext(self, message):
@@ -198,7 +234,7 @@ class ConfigPlugin(BasePlugin):
                 [1] Plugin
                 [2] Command```'''.strip('\t')
 
-            await self.mbot.send_message(message.channel, resp)
+            msg = await self.mbot.send_message(message.channel, resp)
 
             choice = await self.mbot.wait_for_message(
                 author=message.author, channel=message.channel,
@@ -212,3 +248,5 @@ class ConfigPlugin(BasePlugin):
                     await self.disable_cmd(message)
             else:
                 await self.mbot.send_message(message.channel, f'{message.author.mention} *Try again...* :cry:')
+
+            await self.mbot.delete_message(msg)
