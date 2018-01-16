@@ -98,7 +98,7 @@ class ConfigPlugin(BasePlugin):
             await self.mbot.delete_message(m)
 
             for p in plugin.content.split(','):
-                p = p.lstrip().rstrip()
+                p = p.strip()
 
                 ret = await self.mbot.plugin_manager.disable_plugin(message.server.id, p)
 
@@ -127,7 +127,7 @@ class ConfigPlugin(BasePlugin):
             await self.mbot.delete_message(m)
 
             for p in plugin.content.split(','):
-                p = p.lstrip().rstrip()
+                p = p.strip()
 
                 ret = await self.mbot.plugin_manager.enable_plugin(message.server.id, p)
 
@@ -156,7 +156,7 @@ class ConfigPlugin(BasePlugin):
             await self.mbot.delete_message(m)
 
             for c in cmd.content.split(','):
-                c = c.lstrip().rstrip()
+                c = c.strip()
 
                 ret = await self.mbot.plugin_manager.enable_command(message.server.id, c)
 
@@ -185,7 +185,7 @@ class ConfigPlugin(BasePlugin):
             await self.mbot.delete_message(m)
 
             for c in cmd.content.split(','):
-                c = c.lstrip().rstrip()
+                c = c.strip()
 
                 ret = await self.mbot.plugin_manager.disable_command(message.server.id, c)
 
@@ -206,7 +206,7 @@ class ConfigPlugin(BasePlugin):
             resp = '''*Please enter a number corresponding to the type of extension you want to enable...*
             ```
             [1] Plugin
-            [2] Command```'''.strip('\t')
+            [2] Command```'''.strip()
 
             msg = await self.mbot.send_message(message.channel, resp)
 
@@ -232,7 +232,7 @@ class ConfigPlugin(BasePlugin):
             resp = '''*Please enter a number corresponding to the type of extension you want to disable...*
                 ```
                 [1] Plugin
-                [2] Command```'''.strip('\t')
+                [2] Command```'''.strip()
 
             msg = await self.mbot.send_message(message.channel, resp)
 

@@ -223,7 +223,7 @@ class mBot(discord.Client):
         admin_cmd = False
 
         if message.content.startswith(cfg['prefix']):
-            message.content, cmd = message.content.lstrip(cfg['prefix']), True
+            message.content, cmd = message.content[len(cfg['prefix']):], True
         elif message.author.permissions_in(message.channel).administrator and message.content.startswith('!!?'):
             # Anything prefixed with the hardcoded prefix `!!?` will be treated as a command,
             # but only if the user is an admin. This is here just in case the users mess something up, ie.
@@ -236,7 +236,7 @@ class mBot(discord.Client):
                 force=True
             )
 
-            message.content, cmd, admin_cmd = message.content.lstrip('!!?'), True, True
+            message.content, cmd, admin_cmd = message.content[3:], True, True
 
         if admin_cmd:
             commands = dict([(cmd, self.plugin_manager.commands[cmd][-1]) for cmd in self.plugin_manager.commands])
