@@ -22,14 +22,24 @@ class Moderator(BasePlugin):
     async def purge(self, message, limit=100):
         await self._purge(message, limit)
 
+    @command(regex='^purge users .*?(?: (\d*?))?$', description='purge messages created by certain users',
+             usage='purge users <user mentions...> [limit]', perms=8192, cooldown=5, name='purge users')
+    async def purge_users(self, message, limit=100):
+        await self._purge(message, limit, check=lambda msg: msg.author in message.mentions)
+
     @command(regex='^purge bots(?: (\d*?))?$', description='purge bot messages', usage='purge bots [limit]',
              perms=8192, cooldown=5, name='purge bots')
     async def purge_bot(self, message, limit=None):
         await self._purge(message, limit, check=lambda m: m.author.bot)
 
-    @command(regex='^purge match (.*?)(?: (\d*?))?$', description='purge messages that contain a string',
+    @command(regex='^purge match (.*?)(?: (\d*?))?$', description='purge messages that match a string exactly',
              usage='purge match <string> [limit]', perms=8192, cooldown=5, name='purge match')
     async def purge_match(self, message, string, limit=None):
+        await self._purge(message, limit, check=lambda m: m.content == string)
+
+    @command(regex='^purge contains (.*?)(?: (\d*?))?$', description='purge messages that contain a string',
+             usage='purge contains <string> [limit]', perms=8192, cooldown=5, name='purge contains')
+    async def purge_contains(self, message, string, limit=None):
         await self._purge(message, limit, check=lambda m: string in m.content)
 
     @command(regex='^purge not (.*?)(?: (\d*?))?$', description='purge messages that do not contain a string',
