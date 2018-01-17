@@ -60,8 +60,8 @@ class Database(object):
 class Mongo(object):
     '''
     Similar concept to the `Database` class, but it manages the mongo
-    database instance, rather than an sql database. Currently the mongo database
-    is used for per server settings and server statistics.
+    database instance, rather than an sql database. The two options are provided
+    to allow a choice for each use case. The mongodb, however, is what is used primarily.
     '''
     def __init__(self, config):
         self.client = MongoClient(config.mongo.host, config.mongo.port)
@@ -72,6 +72,8 @@ class Mongo(object):
 
         self._stats_db = self.client.stats
         self.stats = self._stats_db.collection
+
+        self.plugin_db = self.client.plugins
 
         # Create global stats document
         _doc = self.stats.find_one({'scope': 'global'})

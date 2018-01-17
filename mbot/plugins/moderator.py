@@ -1,8 +1,16 @@
+from discord import Forbidden
+
 from ..plugin import BasePlugin
 from ..command import command
+from ..utils import long_running_task
 
 
 class Moderator(BasePlugin):
+    def __init__(self, mbot):
+        super().__init__(mbot)
+
+        self.blacklist_db = None
+
     async def _purge(self, message, limit=100, check=None):
         if limit is not None:
             limit = int(limit)
@@ -16,6 +24,105 @@ class Moderator(BasePlugin):
         await self.mbot.send_message(
             message.channel, f'**{message.author.mention} Deleted {len(deleted)} message(s).**'
         )
+
+    async def on_ready(self):
+        self.blacklist_db = self.mbot.mongo.plugin_db.blacklist
+
+    def _create_blacklist(self, server_id, strings=None):
+        doc = self.blacklist_db.find_one({'server_id': server_id})
+
+        if not doc:
+            ret = self.blacklist_db.insert_one(
+                {
+                    'server_id': server_id,
+                    'blacklist': strings or []
+                }
+            )
+
+            return ret
+
+    @long_running_task()
+    def get_blacklist(self, server_id):
+        doc = self.blacklist_db.find_one({'server_id': server_id})
+
+        if doc:
+            return doc['blacklist']
+        else:
+            return []
+
+    @long_running_task()
+    def add_to_blacklist(self, server_id, string):
+        doc = self.blacklist_db.find_one({'server_id': server_id})
+
+        if not doc:
+            ret = self._create_blacklist(server_id, [string])
+        else:
+            ret = self.blacklist_db.update_one(
+                {'server_id': server_id},
+                {'$push': {'blacklist': string}}
+            )
+
+        return bool(ret)
+
+    @long_running_task()
+    def remove_from_blacklist(self, server_id, string):
+        doc = self.blacklist_db.find_one({'server_id': server_id})
+
+        if not doc:
+            ret = self._create_blacklist(server_id, [string])
+        else:
+            ret = self.blacklist_db.update_one(
+                {'server_id': server_id},
+                {'$pull': {'blacklist': string}}
+            )
+
+        return bool(ret)
+
+    async def on_message(self, message):
+        blist = await self.get_blacklist(message.server.id)
+
+        if blist and any([s and s in message.content for s in blist]):
+            await self.mbot.send_message(
+                message.channel,
+                f'{message.author.mention} :scream: **You cannot say that!**'
+            )
+
+            try:
+                await self.mbot.delete_message(message)
+            except Forbidden:
+                pass
+
+    @command(regex='^blacklist (.*?)$', usage='blacklist <string2;string1...>',
+             description='blacklist string(s) or url(s)', perms=8)
+    async def blacklist(self, message, string):
+        ret = await self.add_to_blacklist(message.server.id, string)
+
+        if ret:
+            await self.mbot.send_message(
+                message.channel,
+                f':ok_hand: **Successfully blacklisted `{string}`!**'
+            )
+        else:
+            await self.mbot.send_message(
+                message.channel,
+                f':cry: **Could not blacklist `{string}`!**'
+            )
+
+    @command(regex='^whitelist (.*?)$', usage='whitelist <string2;string1...>',
+             description='whitelist string(s) or url(s)', perms=8)
+    async def whitelist(self, message, string):
+        ret = await self.remove_from_blacklist(message.server.id, string)
+
+        if ret:
+            await self.mbot.send_message(
+                message.channel,
+                f':ok_hand: **Successfully whitelisted `{string}`!**'
+            )
+        else:
+            await self.mbot.send_message(
+                message.channel,
+                f':cry: **Could not whitelist `{string}`!**'
+            )
 
     @command(regex='^purge(?: (\d*?))?$', description='purge the channel', usage='purge [limit]',
              perms=8192, cooldown=5)
