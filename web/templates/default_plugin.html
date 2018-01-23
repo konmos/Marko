@@ -1,0 +1,20 @@
+{% extends "index.html" %}
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="display-4">{{ plugin }}</h1>
+</div>
+
+<form role="form">
+    {% for cmd in commands -%}
+    <div class="form-check abc-checkbox">
+        <h3>{{ cmd }}</h3>
+        <p class="lead">{{ commands[cmd]["description"] }}</p>
+        <input class="form-check-input" type="checkbox" id="{{ cmd }}" name="{{ cmd }}">
+        <label class="form-check-label" for="{{ cmd }}">
+            Enabled/Disabled
+        </label>
+    </div>
+    <br>
+    {%- endfor %}
+</form>
+{% endblock %}
