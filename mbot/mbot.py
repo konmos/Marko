@@ -3,12 +3,16 @@ import io
 import re
 import sys
 import struct
+import signal
 import logging
 from difflib import SequenceMatcher as SM
 
+import gevent
 import aiohttp
 import discord
+from concurrent.futures import ThreadPoolExecutor
 
+from .rpc import RPC, RPCServer
 from .plugin_manager import PluginManager
 from .database import Database, Mongo
 from .utils import long_running_task
@@ -39,6 +43,20 @@ class mBot(discord.Client):
         self.plugin_manager = PluginManager(self)
         self.plugin_manager.load_plugins()
         self.plugin_manager.load_commands()
+
+        self.rpc_server = None
+        self.exposed_rpc = RPC(self)
+
+        self.executor = ThreadPoolExecutor()
+        self.loop.set_default_executor(self.executor)
+
+    def _expose_rpc(self):
+        self.rpc_server = RPCServer(self.exposed_rpc)
+        self.rpc_server.start()
+
+    async def close(self):
+        await super(mBot, self).close()
+        gevent.signal(signal.SIGTERM, self.rpc_server.server.stop)
 
     def run(self, *args, **kwargs):
         '''Blocking call which runs the client using `self.key`.'''
@@ -174,6 +192,8 @@ class mBot(discord.Client):
 
         for plugin in self.plugin_manager.plugins:
             self.loop.create_task(plugin.on_ready())
+
+        self._expose_rpc()
 
     async def on_resumed(self):
         '''Called when the client has resumed a session.'''

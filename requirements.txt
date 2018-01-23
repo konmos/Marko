@@ -1,4 +1,4 @@
-discord.py
+discord.py[voice]
 youtube_dl
 beautifulsoup4
 imageio
@@ -6,5 +6,6 @@ pillow
 pyyaml
 pymongo
 peewee
-pynacl
 praw
+zerorpc
+gevent
