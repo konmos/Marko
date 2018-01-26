@@ -1,2 +1,4 @@
 flask
 zerorpc
+requests
+requests-oauthlib

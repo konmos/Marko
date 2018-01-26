@@ -53,7 +53,11 @@
                 <a class="nav-link" href="/plugins/{{ plugin }}">
                   <span data-feather="file-text"></span>
                   {{ plugin }}
-                  <span class="badge badge-pill badge-primary pull-right">New</span>
+                  {%- if plugin in enabled_plugins -%}
+                  <span class="badge badge-pill badge-success pull-right">Enabled</span>
+                  {% else %}
+                  <span class="badge badge-pill badge-danger pull-right">Disabled</span>
+                  {% endif %}
                 </a>
               </li>
             {%- endfor %}
@@ -62,8 +66,27 @@
         </nav>
 
         <main role="main" class="col-md-9 ml-sm-auto col-lg-10 pt-3 px-4">
-            {% block content %}
-            {% endblock %}
+          {% with messages = get_flashed_messages() %}
+            {% if messages %}
+              {% for message in messages %}
+                {% if message.startswith('OK') %}
+                <div class="alert alert-success alert-dismissible fade show" role="alert">
+                {% elif message.startswith('Oops') %}
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                {% else %}
+                <div class="alert alert-primary alert-dismissible fade show" role="alert">
+                {% endif %}
+                  {{ message }}
+                  <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                  </button>
+                </div>
+              {% endfor %}
+            {% endif %}
+          {% endwith %}
+
+          {% block content %}
+          {% endblock %}
         </main>
       </div>
     </div>

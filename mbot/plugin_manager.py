@@ -214,8 +214,7 @@ class PluginManager(object):
 
         return plugin_name
 
-    @long_running_task()
-    def enable_command(self, server_id, command):
+    def _enable_command(self, server_id, command):
         log.debug(f'enabling {command} command for server {server_id}')
 
         plugin_name = self._plugin_for_cmd(command)
@@ -241,7 +240,10 @@ class PluginManager(object):
             return bool(ret)
 
     @long_running_task()
-    def disable_command(self, server_id, command):
+    def enable_command(self, server_id, command):
+        return self._enable_command(server_id, command)
+
+    def _disable_command(self, server_id, command):
         log.debug(f'disabling {command} command for server {server_id}')
 
         plugin_name = self._plugin_for_cmd(command)
@@ -261,3 +263,7 @@ class PluginManager(object):
             )
 
             return bool(ret)
+
+    @long_running_task()
+    def disable_command(self, server_id, command):
+        return self._disable_command(server_id, command)
