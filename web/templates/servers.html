@@ -10,33 +10,59 @@
 
         <!-- Bootstrap core CSS -->
         <link href="{{ url_for('static', filename='css/bootstrap.css') }}" rel="stylesheet">
+
+        <style>
+            html,
+            body {
+                overflow-x: hidden; /* Prevent scroll on narrow devices */
+            }
+
+            body {
+                padding-top: 56px;
+            }
+
+            .text-white-50 { color: rgba(255, 255, 255, .5); }
+            .bg-blue { background-color: var(--blue); }
+            .border-bottom { border-bottom: 1px solid #e5e5e5; }
+            .box-shadow { box-shadow: 0 .25rem .75rem rgba(0, 0, 0, .05); }
+            .lh-100 { line-height: 1; }
+            .lh-125 { line-height: 1.25; }
+            .lh-150 { line-height: 1.5; }
+        </style>
     </head>
 
     <body>
-        <div class="container">
-            <h1 class="my-4 text-center text-lg-left">Select A Server</h1>
-            <div class="pt-3">
-                <div class="card">
-                    <div class="card-body">
-                        <div class="row text-center text-lg-left">
-                            {% for server in servers -%}
-                            <div class="col-lg-3 col-md-4 col-xs-6">
-                                <div class="d-block mb-4">
-                                    <a href="/server/{{ server['id'] }}">
-                                        {%- if server['icon'] -%}
-                                        <img data-toggle="tooltip" title="{{ server['name'] }}" data-placement="bottom" class="img-fluid img-responsive rounded-circle" src="https://cdn.discordapp.com/icons/{{ server['id'] }}/{{ server['icon'] }}.png?size=64">
-                                        {% else %}
-                                        <img data-toggle="tooltip" title="{{ server['name'] }}" data-placement="bottom" class="img-fluid img-responsive rounded-circle" src="http://placehold.it/64x64">
-                                        {% endif %}
-                                    </a>
-                                </div>
-                            </div>
-                            {%- endfor %}
-                        </div>
-                    </div>
+        <main role="main" class="container">
+            <div class="d-flex align-items-center p-3 my-3 text-white-50 bg-blue rounded box-shadow">
+                <div class="lh-100">
+                    <h6 class="mb-0 text-white lh-100">These are your servers</h6>
+                    <small>Just click the icon of the server you want to manage</small>
                 </div>
             </div>
-        </div>
+
+            <div class="my-3 p-3 bg-white rounded box-shadow">
+                <h6 class="border-bottom border-gray pb-2 mb-0">Servers</h6>
+                {% for server in servers -%}
+                <div class="media text-muted pt-3">
+                    <a href="/server/{{ server['id'] }}">
+                        {%- if server['icon'] -%}
+                        <img data-toggle="tooltip" title="{{ server['name'] }}" data-placement="bottom" class="mr-2 rounded" src="https://cdn.discordapp.com/icons/{{ server['id'] }}/{{ server['icon'] }}.png?size=32">
+                        {% else %}
+                        <img data-toggle="tooltip" title="{{ server['name'] }}" data-placement="bottom" class="mr-2 rounded" src="http://placehold.it/32x32">
+                        {% endif %}
+                    </a>
+                    <p class="media-body pb-3 mb-0 small lh-125 border-bottom border-gray">
+                        <strong class="d-block text-gray-dark">{{ server['name'] }}</strong>
+                        {% if server['owner'] %}
+                        You are the owner of this server.
+                        {% else %}
+                        Your permissions in this server: {{ server['permissions'] }}
+                        {% endif %}
+                    </p>
+                </div>
+                {%- endfor %}
+            </div>
+        </main>
 
         <!-- Bootstrap core JavaScript
         ================================================== -->

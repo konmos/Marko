@@ -129,12 +129,15 @@ PLUGINS = rpc_client().all_plugins()
 def servers():
     guilds = []
     for guild in session.get('guilds'):
-        if guild['owner']:
+        if guild['owner'] or guild['permissions'] in [2146958591, 8]:
             guilds.append(guild)
 
     return render_template('servers.html', servers=guilds)
 
 
+# TODO: lots of security stuff BUT most importantly change this VVV
+# to prevent arbitrary server id's and unauthorised management
+# should also add a check for rate limiting
 @app.route('/server/<server>')
 @requires_auth
 def set_server(server):
