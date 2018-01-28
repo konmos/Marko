@@ -9,7 +9,8 @@ from discord import Permissions, Forbidden
 log = logging.getLogger(__name__)
 
 
-def command(*, regex='', usage='', description='', name='', call_on_message=False, su=False, perms=None, cooldown=None):
+def command(*, regex='', usage='', description='', name='', call_on_message=False,
+            su=False, perms=None, cooldown=None, aliases=None):
     '''
     Utility function to make creating commands easier. Takes care of common tasks such as
     pattern matching, permissions, roles, usages, etc... When a message matches the `regex`,
@@ -17,8 +18,16 @@ def command(*, regex='', usage='', description='', name='', call_on_message=Fals
     '''
 
     def decorator(func):
-        # Pattern defaults to function name.
-        pattern = re.compile(regex or f'^{func.__name__}$')
+        if aliases:
+            pat, cmd_name = regex or f'^{name or func.__name__}$', name or func.__name__
+
+            pattern = re.compile(pat.replace(
+                cmd_name,
+                f'(?:{cmd_name}|{"|".join(aliases)})'
+            ))
+        else:
+            # Pattern defaults to function name.
+            pattern = re.compile(regex or f'^{name or func.__name__}$')
 
         @wraps(func)
         async def wrapper(self, message):
@@ -117,7 +126,8 @@ def command(*, regex='', usage='', description='', name='', call_on_message=Fals
             'usage': usage or '',
             'desc': description,
             'name': name or func.__name__,
-            'plugin': ''
+            'plugin': '',
+            'aliases': aliases or []
         }
 
         return wrapper
