@@ -101,6 +101,8 @@ def command(*, regex='', usage='', description='', name='', call_on_message=Fals
                 msg = await self.mbot.send_message(message.channel, '*I cannot do that...* :cry:')
                 await asyncio.sleep(5)
                 await self.mbot.delete_message(msg)
+            except Exception:
+                log.error(f'error while running {wrapper.info["name"]} in server {message.server.id}')
 
             if call_on_message:
                 await self.on_message(message)
