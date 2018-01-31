@@ -225,6 +225,20 @@ class mBot(discord.Client):
 
         cfg = self.mongo.config.find_one({'server_id': message.server.id})
 
+        # If we get mentioned, reply with a default help command.
+        if re.match(f'^<@{self.user.id}>.*?$', message.content):
+            prefix = cfg["prefix"]
+
+            await self.send_message(
+                message.channel,
+                f':wave: **Hi there {message.author.mention}. The default prefix in this server is '
+                f'`{prefix}`. For help try running `{prefix}help`. For help on a specific command try '
+                f'`{prefix}help <command>`. To view a list of all commands run `{prefix}commands`. '
+                'Have fun!** :ok_hand:'
+            )
+
+            return
+
         # This event is skipped in ignored channels...
         if message.channel.id in cfg['ignored_channels']:
             # ...Unless the user is an admin and runs either the `ignore` or `unignore` command.
