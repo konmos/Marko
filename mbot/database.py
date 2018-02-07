@@ -66,17 +66,17 @@ class Mongo(object):
     def __init__(self, config):
         self.client = MongoClient(config.mongo.host, config.mongo.port)
 
-        self._config_db = self.client.config
-        self.config = self._config_db.config
-        self.cmd_history = self._config_db.cmd_history
+        self.bot_data = self.client.bot_data
 
-        self._stats_db = self.client.stats
-        self.stats = self._stats_db.collection
+        self.config = self.bot_data.config
+        self.cmd_history = self.bot_data.cmd_history
+        self.stats = self.bot_data.stats
 
-        self.plugin_db = self.client.plugins
+        self.plugin_data = self.client.plugin_data
 
         # Create global stats document
         _doc = self.stats.find_one({'scope': 'global'})
+
         if not _doc:
             self.stats.insert_one({'scope': 'global'})
 

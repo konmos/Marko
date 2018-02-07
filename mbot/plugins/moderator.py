@@ -26,7 +26,7 @@ class Moderator(BasePlugin):
         )
 
     async def on_ready(self):
-        self.blacklist_db = self.mbot.mongo.plugin_db.blacklist
+        self.blacklist_db = self.mbot.mongo.plugin_data.blacklist
 
     def _create_blacklist(self, server_id, strings=None):
         doc = self.blacklist_db.find_one({'server_id': server_id})
