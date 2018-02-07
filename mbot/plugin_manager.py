@@ -5,7 +5,6 @@ import importlib.util
 import asyncio
 
 from .plugins import plugins
-from .utils import long_running_task
 from .plugin_registry import PluginRegistry
 
 log = logging.getLogger(__name__)
@@ -119,13 +118,13 @@ class PluginManager(object):
 
         log.debug('reloaded commands')
 
-    def _plugins_for_server(self, server_id):
+    async def plugins_for_server(self, server_id):
         log.debug(f'fetching plugins for server {server_id}')
 
         ret = {}
 
         for plugin in self.plugins:
-            doc = self.mbot.mongo.config.find_one(
+            doc = await self.mbot.mongo.config.find_one(
                 {'server_id': server_id, 'plugins': {'$elemMatch': {'name': plugin.__class__.__name__}}}
             )
 
@@ -134,17 +133,13 @@ class PluginManager(object):
 
         return ret
 
-    @long_running_task()
-    def plugins_for_server(self, server_id):
-        return self._plugins_for_server(server_id)
-
-    def _commands_for_server(self, server_id):
+    async def commands_for_server(self, server_id):
         log.debug(f'fetching commands for server {server_id}')
 
         ret = {}
 
         for plugin in self.plugins:
-            doc = self.mbot.mongo.config.find_one(
+            doc = await self.mbot.mongo.config.find_one(
                 {'server_id': server_id, 'plugins': {'$elemMatch': {'name': plugin.__class__.__name__}}}
             )
 
@@ -160,12 +155,7 @@ class PluginManager(object):
 
         return ret
 
-    @long_running_task()
-    def commands_for_server(self, server_id):
-        return self._commands_for_server(server_id)
-
-    @long_running_task()
-    def disable_plugin(self, server_id, plugin):
+    async def disable_plugin(self, server_id, plugin):
         log.debug(f'disabling {plugin} plugin for server {server_id}')
 
         # Skip config plugin.
@@ -173,22 +163,21 @@ class PluginManager(object):
             return False
 
         if plugin in [p.__class__.__name__ for p in self.plugins]:
-            ret = self.mbot.mongo.config.update_one(
+            ret = await self.mbot.mongo.config.update_one(
                 {'server_id': server_id},
                 {'$pull': {'plugins': {'name': plugin}}}
             )
 
             return bool(ret)
 
-    @long_running_task()
-    def enable_plugin(self, server_id, plugin):
+    async def enable_plugin(self, server_id, plugin):
         log.debug(f'enabling {plugin} plugin for server {server_id}')
 
         # Skip config plugin.
         if plugin == 'ConfigPlugin':
             return False
 
-        doc = self.mbot.mongo.config.find_one(
+        doc = await self.mbot.mongo.config.find_one(
             {'server_id': server_id, 'plugins': {'$elemMatch': {'name': plugin}}}
         )
 
@@ -197,7 +186,7 @@ class PluginManager(object):
             return False
 
         if plugin in [p.__class__.__name__ for p in self.plugins]:
-            ret = self.mbot.mongo.config.update_one(
+            ret = await self.mbot.mongo.config.update_one(
                 {'server_id': server_id},
                 {'$push': {'plugins': {'name': plugin, 'commands': []}}}
             )
@@ -214,8 +203,7 @@ class PluginManager(object):
 
         return plugin_name
 
-    @long_running_task()
-    def enable_command(self, server_id, command):
+    async def enable_command(self, server_id, command):
         log.debug(f'enabling {command} command for server {server_id}')
 
         plugin_name = self._plugin_for_cmd(command)
@@ -224,24 +212,24 @@ class PluginManager(object):
         if plugin_name == 'ConfigPlugin' or not plugin_name:
             return False
 
-        doc = self.mbot.mongo.config.find_one(
+        doc = await self.mbot.mongo.config.find_one(
                 {'server_id': server_id, 'plugins': {'$elemMatch': {'name': plugin_name}}}
             )
 
+        commands =  await self.commands_for_server(server_id)
         # Command is already enabled.
-        if command in self._commands_for_server(server_id):
+        if command in commands:
             return False
 
         if doc is not None:
-            ret = self.mbot.mongo.config.update_one(
+            ret = await self.mbot.mongo.config.update_one(
                 {'server_id': server_id, 'plugins': {'$elemMatch': {'name': plugin_name}}},
                 {'$push': {'plugins.$.commands': command}}
             )
 
             return bool(ret)
 
-    @long_running_task()
-    def disable_command(self, server_id, command):
+    async def disable_command(self, server_id, command):
         log.debug(f'disabling {command} command for server {server_id}')
 
         plugin_name = self._plugin_for_cmd(command)
@@ -250,12 +238,12 @@ class PluginManager(object):
         if plugin_name == 'ConfigPlugin' or not plugin_name:
             return False
 
-        doc = self.mbot.mongo.config.find_one(
+        doc = await self.mbot.mongo.config.find_one(
                 {'server_id': server_id, 'plugins': {'$elemMatch': {'name': plugin_name}}}
             )
 
         if doc is not None:
-            ret = self.mbot.mongo.config.update_one(
+            ret = await self.mbot.mongo.config.update_one(
                 {'server_id': server_id, 'plugins': {'$elemMatch': {'name': plugin_name}}},
                 {'$pull': {'plugins.$.commands': command}}
             )

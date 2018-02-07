@@ -8,22 +8,25 @@ class ConfigPlugin(BasePlugin):
     '''
     Plugin which manages server-specific configurations.
     '''
-    def _set_prefix(self, server_id, prefix):
-        ret = self.mbot.mongo.config.update_one(
+    async def _set_prefix(self, server_id, prefix):
+        ret = await self.mbot.mongo.config.update_one(
             {'server_id': server_id},
             {'$set': {'prefix': prefix}}
         )
 
         return bool(ret)
 
-    def _get_prefix(self, server_id):
-        return self.mbot.mongo.config.find_one({'server_id': server_id})['prefix']
+    async def _get_prefix(self, server_id):
+        ret = await self.mbot.mongo.config.find_one({'server_id': server_id})['prefix']
+        return ret
 
     @command(regex='^prefix (.*?)$', usage='prefix <prefix>', description='set the bot prefix for this server',
              name='prefix', perms=0x8)
     async def set_prefix(self, message, prefix):
         if prefix:
-            if self._set_prefix(message.server.id, prefix):
+            ret = await self._set_prefix(message.server.id, prefix)
+
+            if ret:
                 await self.mbot.send_message(
                     message.channel, f':ok_hand: **Successfully updated prefix to `{prefix}`!**'
                 )
@@ -32,22 +35,22 @@ class ConfigPlugin(BasePlugin):
                     message.channel, ':cry: **Could not update prefix...**'
                 )
 
-    def _ignore_channel(self, server_id, channel_id):
-        doc = self.mbot.mongo.config.find_one({'server_id': server_id})
+    async def _ignore_channel(self, server_id, channel_id):
+        doc = await self.mbot.mongo.config.find_one({'server_id': server_id})
 
         # Already ignored.
         if channel_id in doc['ignored_channels']:
             return False
 
-        ret = self.mbot.mongo.config.update_one(
+        ret = await self.mbot.mongo.config.update_one(
             {'server_id': server_id},
             {'$push': {'ignored_channels': channel_id}}
         )
 
         return bool(ret)
 
-    def _unignore_channel(self, server_id, channel_id):
-        ret = self.mbot.mongo.config.update_one(
+    async def _unignore_channel(self, server_id, channel_id):
+        ret = await self.mbot.mongo.config.update_one(
             {'server_id': server_id},
             {'$pull': {'ignored_channels': channel_id}}
         )
@@ -56,7 +59,9 @@ class ConfigPlugin(BasePlugin):
 
     @command(description='ignore the current channel', usage='ignore', perms=0x8)
     async def ignore(self, message):
-        if self._ignore_channel(message.server.id, message.channel.id):
+        ret = await self._ignore_channel(message.server.id, message.channel.id)
+
+        if ret:
             await self.mbot.send_message(
                 message.channel, f':ok_hand: **Now ignoring `#{message.channel.name}`!**', force=True
             )
@@ -67,7 +72,9 @@ class ConfigPlugin(BasePlugin):
 
     @command(description='unignore the current channel', usage='unignore', perms=0x8)
     async def unignore(self, message):
-        if self._unignore_channel(message.server.id, message.channel.id):
+        ret =  await self._unignore_channel(message.server.id, message.channel.id)
+
+        if ret:
             await self.mbot.send_message(
                 message.channel, f':ok_hand: **Not ignoring `#{message.channel.name}` anymore!**', force=True
             )

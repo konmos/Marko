@@ -3,7 +3,7 @@ import sqlite3
 import logging
 
 import peewee as pe
-from pymongo import MongoClient
+from motor.motor_asyncio import AsyncIOMotorClient as MongoClient
 
 log = logging.getLogger(__name__)
 
@@ -74,10 +74,11 @@ class Mongo(object):
 
         self.plugin_data = self.client.plugin_data
 
-        # Create global stats document
-        _doc = self.stats.find_one({'scope': 'global'})
+        log.debug(f'connected to mongo instance at {config.mongo.host}:{config.mongo.port}')
+
+    async def init_stats(self):
+        # Initialise global stats document
+        _doc = await self.stats.find_one({'scope': 'global'})
 
         if not _doc:
-            self.stats.insert_one({'scope': 'global'})
-
-        log.debug(f'connected to mongo instance at {config.mongo.host}:{config.mongo.port}')
+            await self.stats.insert_one({'scope': 'global'})

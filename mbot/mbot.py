@@ -11,7 +11,6 @@ import discord
 
 from .plugin_manager import PluginManager
 from .database import Database, Mongo
-from .utils import long_running_task
 
 log = logging.getLogger(__name__)
 
@@ -30,7 +29,9 @@ class mBot(discord.Client):
         self.key = config.mbot.key
 
         self.db = Database(config)
+
         self.mongo = Mongo(config)
+        self.loop.create_task(self.mongo.init_stats())
 
         # Load opus on Windows. On linux it should be already loaded.
         if os.name in ['nt', 'ce']:
@@ -48,7 +49,7 @@ class mBot(discord.Client):
         '''Sends a message to the destination given with the file given.'''
 
         # Update global statistics
-        self.mongo.stats.update_one(
+        await self.mongo.stats.update_one(
             {'scope': 'global'},
             {'$inc': {'files_sent': 1}}
         )
@@ -56,13 +57,13 @@ class mBot(discord.Client):
         if not force:
             # Check if we are in an ignored channel.
             if isinstance(destination, discord.Server):
-                cfg = self.mongo.config.find_one({'server_id': destination.id})
+                cfg = await self.mongo.config.find_one({'server_id': destination.id})
 
                 if destination.default_channel.id in cfg['ignored_channels']:
                     return
 
             elif isinstance(destination, (discord.Channel, discord.PrivateChannel)):
-                cfg = self.mongo.config.find_one({'server_id': destination.server.id})
+                cfg = await self.mongo.config.find_one({'server_id': destination.server.id})
 
                 if destination.id in cfg['ignored_channels']:
                     return
@@ -95,7 +96,7 @@ class mBot(discord.Client):
         '''Sends a message to the destination given with the content given.'''
 
         # Update global statistics
-        self.mongo.stats.update_one(
+        await self.mongo.stats.update_one(
             {'scope': 'global'},
             {'$inc': {'messages_sent': 1}}
         )
@@ -106,13 +107,13 @@ class mBot(discord.Client):
         if not force:
             # Check if we are in an ignored channel.
             if isinstance(destination, discord.Server):
-                cfg = self.mongo.config.find_one({'server_id': destination.id})
+                cfg = await self.mongo.config.find_one({'server_id': destination.id})
 
                 if destination.default_channel.id in cfg['ignored_channels']:
                     return
 
             elif isinstance(destination, (discord.Channel, discord.PrivateChannel)):
-                cfg = self.mongo.config.find_one({'server_id': destination.server.id})
+                cfg = await self.mongo.config.find_one({'server_id': destination.server.id})
 
                 if destination.id in cfg['ignored_channels']:
                     return
@@ -125,10 +126,9 @@ class mBot(discord.Client):
         ret = await super(mBot, self).send_message(destination, content, tts=tts, embed=embed)
         return ret
 
-    @long_running_task()
-    def _create_config(self, server_id):
+    async def _create_config(self, server_id):
         '''Create a default configuration for a new server.'''
-        cfg = self.mongo.config.find_one({'server_id': server_id})
+        cfg = await self.mongo.config.find_one({'server_id': server_id})
 
         if cfg is None:
             plugins = []
@@ -154,7 +154,7 @@ class mBot(discord.Client):
                 'ignored_channels': []
             }
 
-            self.mongo.config.insert_one(cfg)
+            await self.mongo.config.insert_one(cfg)
 
     async def on_ready(self):
         '''Called when the client is done preparing the data received from Discord.'''
@@ -165,7 +165,7 @@ class mBot(discord.Client):
             await self._create_config(server.id)
 
         # Update global statistics
-        self.mongo.stats.update_one(
+        await self.mongo.stats.update_one(
             {'scope': 'global'},
             {'$set': {'num_guilds': len(self.servers)}}
         )
@@ -192,7 +192,7 @@ class mBot(discord.Client):
         log.debug(f'{sys._getframe().f_code.co_name} event triggered')
 
         # Update global statistics
-        self.mongo.stats.update_one(
+        await self.mongo.stats.update_one(
             {'scope': 'global'},
             {'$inc': {'messages_received': 1}}
         )
@@ -203,7 +203,7 @@ class mBot(discord.Client):
         if message.author.bot:
             return
 
-        cfg = self.mongo.config.find_one({'server_id': message.server.id})
+        cfg = await self.mongo.config.find_one({'server_id': message.server.id})
 
         # If we get mentioned, reply with a default help command.
         if re.match(f'^<@{self.user.id}>.*?$', message.content):
@@ -403,7 +403,7 @@ class mBot(discord.Client):
         await self._create_config(server.id)
 
         # Update global statistics
-        self.mongo.stats.update_one(
+        await self.mongo.stats.update_one(
             {'scope': 'global'},
             {'$inc': {'num_guilds': 1}}
         )
