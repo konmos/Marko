@@ -2,14 +2,13 @@ from discord import Forbidden
 
 from ..plugin import BasePlugin
 from ..command import command
-from ..utils import long_running_task
 
 
 class Moderator(BasePlugin):
     def __init__(self, mbot):
         super().__init__(mbot)
 
-        self.blacklist_db = None
+        self.blacklist_db = self.mbot.mongo.plugin_data.blacklist
 
     async def _purge(self, message, limit=100, check=None):
         if limit is not None:
@@ -24,9 +23,6 @@ class Moderator(BasePlugin):
         await self.mbot.send_message(
             message.channel, f'**{message.author.mention} Deleted {len(deleted)} message(s).**'
         )
-
-    async def on_ready(self):
-        self.blacklist_db = self.mbot.mongo.plugin_data.blacklist
 
     async def _create_blacklist(self, server_id, strings=None):
         doc = await self.blacklist_db.find_one({'server_id': server_id})
