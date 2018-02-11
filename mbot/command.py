@@ -102,7 +102,7 @@ def command(*, regex='', usage='', description='', name='', call_on_message=Fals
                 await asyncio.sleep(5)
                 await self.mbot.delete_message(msg)
             except Exception:
-                log.error(f'error while running {wrapper.info["name"]} in server {message.server.id}')
+                log.exception(f'error while running {wrapper.info["name"]} in server {message.server.id}')
 
             if call_on_message:
                 await self.on_message(message)
