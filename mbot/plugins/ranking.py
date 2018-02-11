@@ -1,43 +1,23 @@
 import os
 import io
-import time
 import random
 import mimetypes
 
 import aiohttp
 import discord
-import peewee as pe
 from PIL import Image, ImageDraw, ImageFont
 
 from ..plugin import BasePlugin
-from ..database import BaseModel
 from ..command import command
 from ..utils import long_running_task
 
 
-class RankedProfile(BaseModel):
-    '''
-    Represents a global profile for a ranked user.
-    '''
-    user_id = pe.CharField(unique=True)
-    bio = pe.CharField(default='A very mysterious person...')
-    background = pe.CharField(
-        default='https://img00.deviantart.net/95e7/i/2014/007/d/3/google_abstract_by_dynamicz34-d718hzj.png'
-    )
-
-
-class RankedUser(BaseModel):
-    '''
-    Represents a single user in a particular server.
-    '''
-    server = pe.CharField()
-    user_id = pe.CharField()
-    xp = pe.IntegerField()
-
-    profile = pe.ForeignKeyField(RankedProfile, to_field='user_id')
-
-
 class Ranking(BasePlugin):
+    def __init__(self, mbot):
+        super().__init__(mbot)
+
+        self.ranking_db = self.mbot.mongo.plugin_data.ranking
+
     @staticmethod
     def _get_level(total_xp):
         if not total_xp % 10:
@@ -60,67 +40,106 @@ class Ranking(BasePlugin):
 
         return url
 
-    async def on_ready(self):
-        self.mbot.db.db.create_tables([RankedProfile, RankedUser], safe=True)
+    async def _create_user(self, user_id, bio=None, bckg=None):
+        doc = await self.ranking_db.find_one({'user_id': user_id})
+
+        if not doc:
+            ret = await self.ranking_db.insert_one({
+                'user_id': user_id,
+                'profile_bio': bio or 'A very mysterious person...',
+                'profile_background': bckg or 'https://image.ibb.co/iup1Vc/580_680_76_D_33966_1393393398_420_588.jpg',
+                'ranking': []
+            })
+
+            return ret
+
+    async def _push_server(self, user_id, server_id):
+        doc = await self.ranking_db.find_one(
+            {'user_id': user_id, 'ranking': {'$elemMatch': {'server_id': server_id}}}
+        )
+
+        if not doc:
+            ret = await self.ranking_db.update_one(
+                {'user_id': user_id},
+                {'$push': {'ranking': {'server_id': server_id, 'score': 0}}}
+            )
+
+            return ret
+
+    async def ensure_profile_exists(self, user_id, server_id=None):
+        await self._create_user(user_id)
+
+        if server_id is not None:
+            await self._push_server(user_id, server_id)
+
+    async def update_xp(self, user_id, server_id, by):
+        await self.ensure_profile_exists(user_id, server_id)
+
+        await self.ranking_db.update_one(
+            {'user_id': user_id, 'ranking': {'$elemMatch': {'server_id': server_id}}},
+            {'$inc': {'ranking.$.score': by}}
+        )
+
+    async def update_background(self, user_id, bckg):
+        await self.ensure_profile_exists(user_id)
+
+        await self.ranking_db.update_one(
+            {'user_id': user_id},
+            {'$set': {'profile_background': bckg}}
+        )
+
+    async def update_bio(self, user_id, bio):
+        await self.ensure_profile_exists(user_id)
+
+        await self.ranking_db.update_one(
+            {'user_id': user_id},
+            {'$set': {'profile_bio': bio}}
+        )
+
+    async def get_user_data(self, user_id):
+        await self.ensure_profile_exists(user_id)
+
+        doc = await self.ranking_db.find_one(
+            {'user_id': user_id}
+        )
+
+        server_scores = {}
+        for server in doc['ranking']:
+            server_scores[server['server_id']] = server['score']
+
+        return {
+            'user_id': user_id,
+            'bio': doc['profile_bio'],
+            'background': doc['profile_background'],
+            'scores': server_scores
+        }
 
     async def on_message(self, message):
-        profile = RankedProfile.select().where(
-            RankedProfile.user_id == message.author.id
+        await self.update_xp(
+            message.author.id,
+            message.server.id,
+            random.randint(2, 14)
         )
-
-        if not profile.exists():
-            profile = RankedProfile.create(
-                user_id=message.author.id
-            )
-
-            profile.save()
-
-        user = RankedUser.select().where(
-            RankedUser.user_id == message.author.id, RankedUser.server == message.server.id
-        )
-
-        if not user.exists():
-            user = RankedUser.create(
-                server=message.server.id,
-                user_id=message.author.id,
-                username=message.author,
-                xp=random.randint(2, 14),
-                profile=profile.get().user_id
-            )
-
-            user.save()
-        else:
-            update_xp = RankedUser.update(xp=RankedUser.xp + random.randint(2, 14)).where(
-                RankedUser.user_id == message.author.id,
-                RankedUser.server == message.server.id
-            )
-
-            update_xp.execute()
 
     @command(description='view your current total xp', usage='xp', call_on_message=True)
     async def xp(self, message):
-        user = RankedUser.select().where(
-            RankedUser.user_id == message.author.id, RankedUser.server == message.server.id
-        )
-
-        total_xp = str(user.get().xp) if user.exists() else '0'
+        user_data = await self.get_user_data(message.author.id)
+        total_xp = user_data['scores'].get(message.server.id) or 0
         await self.mbot.send_message(message.channel, f'{message.author.mention} **TOTAL XP: {total_xp}**')
 
     @command(description='view your (legacy) ranking profile', usage='old_profile', call_on_message=True, cooldown=5)
     async def old_profile(self, message):
-        user = RankedUser.select().where(
-            RankedUser.user_id == message.author.id, RankedUser.server == message.server.id
-        )
+        user_data = await self.get_user_data(message.author.id)
 
         embed = discord.Embed(
             title = message.author.name,
             colour = 0x1abc9c
         )
 
-        embed.set_footer(text=str(int(time.time())))
+        embed.set_footer(text=user_data['user_id'])
         embed.set_thumbnail(url=self.get_avatar_url(message.author))
 
-        xp = user.get().xp if user.exists() else 0
+        xp = user_data['scores'].get(message.server.id) or 0
         level = self._get_level(xp)
 
         embed.add_field(name='Total XP:', value=str(xp), inline=True)
@@ -168,16 +187,11 @@ class Ranking(BasePlugin):
 
     @command(description='view your ranking profile', usage='profile', call_on_message=True, cooldown=20)
     async def profile(self, message):
-        user = RankedUser.select().where(
-            RankedUser.user_id == message.author.id, RankedUser.server == message.server.id
-        )
+        user_data = await self.get_user_data(message.author.id)
 
-        if not user.exists():
-            return
-
-        xp = user.get().xp
-        bio = user.get().profile.bio
-        background = user.get().profile.background
+        xp = user_data['scores'].get(message.server.id) or 0
+        bio = user_data['bio']
+        background = user_data['background']
 
         # Try to download background...
         try:
@@ -198,19 +212,10 @@ class Ranking(BasePlugin):
         profile = await self.gen_profile(xp, message.author.name, bio, bckg_buffer, profile_buffer, _message=message)
         await self.mbot.send_file(message.channel, profile, filename='profile.png')
 
-    @command(regex='^bio (.*?)$', description='set bio for (beta) profile', usage='bio <bio>',
+    @command(regex='^bio (.*?)$', description='set bio for profile', usage='bio <bio>',
              call_on_message=True, cooldown=60)
     async def bio(self, message, bio):
-        user = RankedUser.select(RankedUser).where(
-            RankedUser.user_id == message.author.id, RankedUser.server == message.server.id
-        )
-
-        if user.exists():
-            update_bio = RankedProfile.update(bio=bio).where(
-                RankedProfile.user_id == message.author.id
-            )
-
-            update_bio.execute()
+        await self.update_bio(message.author.id, bio)
 
     @command(regex='^background <?(.*?)>?$', description='set a background for your profile',
              usage='background <url>', call_on_message=True, cooldown=60)
@@ -232,30 +237,24 @@ class Ranking(BasePlugin):
         except:
             pass
 
-        user = RankedUser.select(RankedUser).where(
-            RankedUser.user_id == message.author.id, RankedUser.server == message.server.id
-        )
-
-        if user.exists():
-            update_bckg = RankedProfile.update(background=url).where(
-                RankedProfile.user_id == message.author.id
-            )
-
-            update_bckg.execute()
+        await self.update_background(message.author.id, url)
 
     @command(description='view the top 10 ranked players in the server', usage='top',
              cooldown=5, call_on_message=True)
     async def top(self, message):
         top = []
-        for x, ru in enumerate(
-                RankedUser.select().where(RankedUser.server == message.server.id).order_by(-RankedUser.xp)):
-            if x != 10:
-                top.append((ru.user_id, ru.xp))
+
+        cursor = self.ranking_db.find({'ranking.server_id': message.server.id})
+        cursor.sort('ranking.score', -1).limit(10)
+        async for doc in cursor:
+            top.append(doc['user_id'])
 
         code_block = '```\n'
         for x, ru in enumerate(top):
-            u = message.server.get_member(ru[0])
-            code_block += f'[{x+1}]\t>\t{u.name}\n\t\t\t  Total XP: {ru[1]}\n'
+            u = message.server.get_member(ru)
+
+            if u is not None:
+                code_block += f'[{x+1}]\t>\t{u.name}\n'
 
         code_block += '\n```'
         await self.mbot.send_message(message.channel, code_block)

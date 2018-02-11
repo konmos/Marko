@@ -17,7 +17,7 @@ CMD_HELP = (
 class Help(BasePlugin):
     @command(regex='^help(?: (.*?))?$', usage='help <command>', description='displays the help page')
     async def help(self, message, cmd=None):
-        server_cfg = self.mbot.mongo.config.find_one({'server_id': message.server.id})
+        server_cfg = await self.mbot.mongo.config.find_one({'server_id': message.server.id})
         commands = await self.mbot.plugin_manager.commands_for_server(message.server.id)
 
         if not cmd:

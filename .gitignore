@@ -4,6 +4,8 @@ mbot.yaml
 *.log
 *.db
 *.xcf
+mbot/notes.txt
+notes.txt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

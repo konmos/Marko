@@ -2,14 +2,13 @@ from discord import Forbidden
 
 from ..plugin import BasePlugin
 from ..command import command
-from ..utils import long_running_task
 
 
 class Moderator(BasePlugin):
     def __init__(self, mbot):
         super().__init__(mbot)
 
-        self.blacklist_db = None
+        self.blacklist_db = self.mbot.mongo.plugin_data.blacklist
 
     async def _purge(self, message, limit=100, check=None):
         if limit is not None:
@@ -25,14 +24,11 @@ class Moderator(BasePlugin):
             message.channel, f'**{message.author.mention} Deleted {len(deleted)} message(s).**'
         )
 
-    async def on_ready(self):
-        self.blacklist_db = self.mbot.mongo.plugin_db.blacklist
-
-    def _create_blacklist(self, server_id, strings=None):
-        doc = self.blacklist_db.find_one({'server_id': server_id})
+    async def _create_blacklist(self, server_id, strings=None):
+        doc = await self.blacklist_db.find_one({'server_id': server_id})
 
         if not doc:
-            ret = self.blacklist_db.insert_one(
+            ret = await self.blacklist_db.insert_one(
                 {
                     'server_id': server_id,
                     'blacklist': strings or []
@@ -41,37 +37,34 @@ class Moderator(BasePlugin):
 
             return ret
 
-    @long_running_task()
-    def get_blacklist(self, server_id):
-        doc = self.blacklist_db.find_one({'server_id': server_id})
+    async def get_blacklist(self, server_id):
+        doc = await self.blacklist_db.find_one({'server_id': server_id})
 
         if doc:
             return doc['blacklist']
         else:
             return []
 
-    @long_running_task()
-    def add_to_blacklist(self, server_id, string):
-        doc = self.blacklist_db.find_one({'server_id': server_id})
+    async def add_to_blacklist(self, server_id, string):
+        doc = await self.blacklist_db.find_one({'server_id': server_id})
 
         if not doc:
-            ret = self._create_blacklist(server_id, [string])
+            ret = await self._create_blacklist(server_id, [string])
         else:
-            ret = self.blacklist_db.update_one(
+            ret = await self.blacklist_db.update_one(
                 {'server_id': server_id},
                 {'$push': {'blacklist': string}}
             )
 
         return bool(ret)
 
-    @long_running_task()
-    def remove_from_blacklist(self, server_id, string):
-        doc = self.blacklist_db.find_one({'server_id': server_id})
+    async def remove_from_blacklist(self, server_id, string):
+        doc = await self.blacklist_db.find_one({'server_id': server_id})
 
         if not doc:
-            ret = self._create_blacklist(server_id, [string])
+            ret = await self._create_blacklist(server_id, [string])
         else:
-            ret = self.blacklist_db.update_one(
+            ret = await self.blacklist_db.update_one(
                 {'server_id': server_id},
                 {'$pull': {'blacklist': string}}
             )

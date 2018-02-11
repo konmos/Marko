@@ -41,12 +41,12 @@ def command(*, regex='', usage='', description='', name='', call_on_message=Fals
             log.debug(f'running command {wrapper.info["name"]} in server {message.server.id}')
 
             # Check if command history exists. Create it if not.
-            doc = self.mbot.mongo.cmd_history.find_one(
+            doc = await self.mbot.mongo.cmd_history.find_one(
                 {'user_id': message.author.id}
             )
 
             if doc is None:
-                self.mbot.mongo.cmd_history.insert_one(
+                await self.mbot.mongo.cmd_history.insert_one(
                     {
                         'user_id': message.author.id,
                         'commands': []
@@ -58,7 +58,7 @@ def command(*, regex='', usage='', description='', name='', call_on_message=Fals
                 history = dict([(cmd['name'], cmd['timestamp']) for cmd in doc['commands']])
 
             # Update global statistics
-            self.mbot.mongo.stats.update_one(
+            await self.mbot.mongo.stats.update_one(
                 {'scope': 'global'},
                 {'$inc': {'commands_received': 1}}
             )
@@ -102,20 +102,20 @@ def command(*, regex='', usage='', description='', name='', call_on_message=Fals
                 await asyncio.sleep(5)
                 await self.mbot.delete_message(msg)
             except Exception:
-                log.error(f'error while running {wrapper.info["name"]} in server {message.server.id}')
+                log.exception(f'error while running {wrapper.info["name"]} in server {message.server.id}')
 
             if call_on_message:
                 await self.on_message(message)
 
             # Update timestamps
             if wrapper.info['name'] not in history:
-                self.mbot.mongo.cmd_history.update_one(
+                await self.mbot.mongo.cmd_history.update_one(
                     {'user_id': message.author.id},
                     {'$push': {'commands': {'name': wrapper.info['name'], 'timestamp': time.time()}}}
                 )
             else:
                 tstamp = time.time()
-                self.mbot.mongo.cmd_history.update_one(
+                await self.mbot.mongo.cmd_history.update_one(
                     {'user_id': message.author.id, 'commands': {'$elemMatch': {'name': wrapper.info['name']}}},
                     {'$set': {'commands.$.timestamp': tstamp}}
                 )

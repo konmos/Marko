@@ -5,7 +5,9 @@ imageio
 pillow
 pyyaml
 pymongo
-peewee
 praw
 zerorpc
 gevent
+pynacl
+praw
+motor

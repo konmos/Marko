@@ -12,14 +12,15 @@ from ..utils import long_running_task
 
 
 _cfg = Config(os.environ['mbot_config'])
-if _cfg.plugins.get('reddit', {}).get('client_id', '') and _cfg.plugins.get('reddit', {}).get('client_secret', ''):
+if _cfg.plugin_data.get('reddit', {}).get('client_id', '') and \
+    _cfg.plugin_data.get('reddit', {}).get('client_secret', ''):
 
     class Reddit(BasePlugin):
         def __init__(self, mbot):
             super().__init__(mbot)
 
-            self.client_id = self.mbot.config.plugins.get('reddit', {}).get('client_id', '')
-            self.client_secret = self.mbot.config.plugins.get('reddit', {}).get('client_secret', '')
+            self.client_id = self.mbot.config.plugin_data.get('reddit', {}).get('client_id', '')
+            self.client_secret = self.mbot.config.plugin_data.get('reddit', {}).get('client_secret', '')
 
             self.user_agent = f'{os.name}:github.com/konmos/MarkoBot:v0-{self.client_id[:6]} (by /u/Kojak2)'
 

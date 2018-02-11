@@ -14,13 +14,6 @@ mbot:
     key: DISCORD_BOT_TOKEN_GOES_HERE  # CHANGEME
     cmd_prefix: m!  # This is a default value. This can also be changed on a per server basis.
 
-db:
-    type: sqlite  # This can also be set to mysql
-    database: data\mbot.db  # If sqlite, this is a file path. If MYSQL, this is the db name.
-    user:  # MYSQL
-    password:  # MYSQL
-    host:  # MYSQL
-
 mongo:
   host: localhost
   port: 12345
