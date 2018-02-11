@@ -5,7 +5,6 @@ imageio
 pillow
 pyyaml
 pymongo
-peewee
 pynacl
 praw
 motor

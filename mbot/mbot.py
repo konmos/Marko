@@ -10,7 +10,7 @@ import aiohttp
 import discord
 
 from .plugin_manager import PluginManager
-from .database import Database, Mongo
+from .database import Mongo
 
 log = logging.getLogger(__name__)
 
@@ -27,8 +27,6 @@ class mBot(discord.Client):
         # Default global config.
         self.config = config
         self.key = config.mbot.key
-
-        self.db = Database(config)
 
         self.mongo = Mongo(config)
         self.loop.create_task(self.mongo.init_stats())
