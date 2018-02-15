@@ -1,9 +1,11 @@
 import os
 import zerorpc
-from flask import Flask, render_template, session, redirect, request, url_for, flash, get_flashed_messages
+from flask import Flask, render_template, session, redirect, request, url_for, flash
 from requests_oauthlib import OAuth2Session
 from functools import wraps
 
+
+RPC_HOST = os.environ.get('RPC_HOST', 'tcp://127.0.0.1:4243')
 
 OAUTH2_CLIENT_ID = os.environ['OAUTH2_CLIENT_ID']
 OAUTH2_CLIENT_SECRET = os.environ['OAUTH2_CLIENT_SECRET']
@@ -19,6 +21,15 @@ app.config['SECRET_KEY'] = OAUTH2_CLIENT_SECRET
 
 if 'http://' in OAUTH2_REDIRECT_URI:
     os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = 'true'
+
+
+def rpc_client():
+    client = zerorpc.Client()
+    client.connect(RPC_HOST)
+    return client
+
+
+PLUGINS = rpc_client().installed_plugins()
 
 
 def token_updater(token):
@@ -100,7 +111,6 @@ def requires_auth(func):
             return redirect(url_for('.auth'))
 
         return func(*args, **kwargs)
-
     return decorator
 
 
@@ -113,15 +123,6 @@ def requires_server(func):
         return func(*args, **kwargs)
 
     return decorator
-
-
-def rpc_client(host='tcp://127.0.0.1', port=4242):
-    c = zerorpc.Client()
-    c.connect(f'{host}:{port}')
-    return c
-
-
-PLUGINS = rpc_client().all_plugins()
 
 
 @app.route('/servers')
@@ -157,16 +158,17 @@ def index():
 @requires_auth
 @requires_server
 def get_plugin(plugin):
-    plugins, enabled_plugins = PLUGINS, rpc_client().plugins_for_server(session.get('active_server'))
+    rpc = rpc_client()
+    enabled_plugins = rpc.plugins_for_server(session.get('active_server'))
 
     if os.path.isfile(os.path.join('templates', plugin + '.html')):
         return render_template(plugin + '.html')
     else:
         return render_template(
             'default_plugin.html',
-            plugins=plugins,
+            plugins=PLUGINS,
             plugin=plugin,
-            commands=plugins[plugin],
+            commands=rpc.commands_for_plugin(plugin),
             enabled_plugins=enabled_plugins,
             enabled_commands=enabled_plugins.get(plugin, [])
         )
@@ -180,19 +182,24 @@ def update_commands():
 
     data = dict(request.form)
     plugin = data['_plugin'][0]
-    ret = []
 
-    commands, enabled_commands = PLUGINS[plugin], rpc_client().plugins_for_server(session.get('active_server'))[plugin]
+    commands = rpc.commands_for_plugin(plugin)
+    enabled_commands = rpc.plugins_for_server(session.get('active_server')).get(plugin)
+
+    to_disable, to_enable = [], []
 
     for cmd in commands:
         if cmd in enabled_commands and cmd not in data:
             # command was disabled
-            ret.extend(rpc.disable_commands(session.get('active_server'), [cmd]))
+            to_disable.append(cmd)
         elif cmd in data and cmd not in enabled_commands:
             # command was enabled
-            ret.extend(rpc.enable_commands(session.get('active_server'), [cmd]))
+            to_enable.append(cmd)
 
-    if not ret or all(ret):
+    enabled = rpc.enable_commands(session.get('active_server'), to_enable)
+    disabled = rpc.disable_commands(session.get('active_server'), to_disable)
+
+    if enabled and disabled:
         flash('OK! Configuration updated!')
     else:
         flash('Oops! Something went wrong...')
