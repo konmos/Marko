@@ -216,7 +216,7 @@ class PluginManager(object):
                 {'server_id': server_id, 'plugins': {'$elemMatch': {'name': plugin_name}}}
             )
 
-        commands =  await self.commands_for_server(server_id)
+        commands = await self.commands_for_server(server_id)
         # Command is already enabled.
         if command in commands:
             return False
