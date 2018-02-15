@@ -1,6 +1,6 @@
 import os
 import zerorpc
-from flask import Flask, render_template, session, redirect, request, url_for, flash
+from flask import Flask, render_template, session, redirect, request, flash
 from requests_oauthlib import OAuth2Session
 from functools import wraps
 
@@ -147,7 +147,6 @@ def set_server(server):
 @requires_server
 def index():
     plugins, enabled_plugins = PLUGINS, rpc_client().plugins_for_server(session.get('active_server'))
-    print(enabled_plugins)
     return render_template('default.html', plugins=plugins, enabled_plugins=enabled_plugins)
 
 
