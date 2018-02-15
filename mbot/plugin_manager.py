@@ -158,8 +158,8 @@ class PluginManager(object):
     async def disable_plugin(self, server_id, plugin):
         log.debug(f'disabling {plugin} plugin for server {server_id}')
 
-        # Skip config plugin.
-        if plugin == 'ConfigPlugin':
+        # Skip Help plugin.
+        if plugin == 'Help':
             return False
 
         if plugin in [p.__class__.__name__ for p in self.plugins]:
@@ -173,8 +173,8 @@ class PluginManager(object):
     async def enable_plugin(self, server_id, plugin):
         log.debug(f'enabling {plugin} plugin for server {server_id}')
 
-        # Skip config plugin.
-        if plugin == 'ConfigPlugin':
+        # Skip Help plugin.
+        if plugin == 'Help':
             return False
 
         doc = await self.mbot.mongo.config.find_one(
@@ -208,8 +208,8 @@ class PluginManager(object):
 
         plugin_name = self._plugin_for_cmd(command)
 
-        # Skip config plugin.
-        if plugin_name == 'ConfigPlugin' or not plugin_name:
+        # Skip Help plugin.
+        if plugin_name == 'Help' or not plugin_name:
             return False
 
         doc = await self.mbot.mongo.config.find_one(
@@ -234,8 +234,8 @@ class PluginManager(object):
 
         plugin_name = self._plugin_for_cmd(command)
 
-        # Skip config plugin.
-        if plugin_name == 'ConfigPlugin' or not plugin_name:
+        # Skip Help plugin.
+        if plugin_name == 'Help' or not plugin_name:
             return False
 
         doc = await self.mbot.mongo.config.find_one(
