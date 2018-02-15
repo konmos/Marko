@@ -8,6 +8,4 @@ pymongo
 praw
 zerorpc
 gevent
-pynacl
-praw
 motor
