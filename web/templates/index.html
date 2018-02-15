@@ -33,7 +33,7 @@
           <div class="sidebar-sticky">
             <ul class="nav flex-column">
               <li class="nav-item">
-                <a class="nav-link" href="/">
+                <a class="nav-link" href="/dashboard">
                   <span data-feather="home"></span>
                   General
                 </a>
@@ -50,7 +50,7 @@
             <ul class="nav flex-column mb-2">
             {% for plugin in plugins -%}
               <li class="nav-item">
-                <a class="nav-link" href="/plugins/{{ plugin }}">
+                <a class="nav-link" href="/dashboard/plugins/{{ plugin }}">
                   <span data-feather="file-text"></span>
                   {{ plugin }}
                   {%- if plugin in enabled_plugins -%}

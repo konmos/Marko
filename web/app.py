@@ -9,7 +9,7 @@ RPC_HOST = os.environ.get('RPC_HOST', 'tcp://127.0.0.1:4243')
 
 OAUTH2_CLIENT_ID = os.environ['OAUTH2_CLIENT_ID']
 OAUTH2_CLIENT_SECRET = os.environ['OAUTH2_CLIENT_SECRET']
-OAUTH2_REDIRECT_URI = 'http://localhost:5000/auth/callback'
+OAUTH2_REDIRECT_URI = 'http://localhost:5000/dashboard/auth'
 
 API_BASE_URL = os.environ.get('API_BASE_URL', 'https://discordapp.com/api')
 AUTHORIZATION_BASE_URL = API_BASE_URL + '/oauth2/authorize'
@@ -52,7 +52,7 @@ def make_session(token=None, state=None, scope=None):
     )
 
 
-@app.route('/auth')
+@app.route('/dashboard/login')
 def auth():
     scope = request.args.get(
         'scope',
@@ -65,7 +65,7 @@ def auth():
     return redirect(authorization_url)
 
 
-@app.route('/auth/callback')
+@app.route('/dashboard/auth')
 def callback():
     if request.values.get('error'):
         return request.values['error']
@@ -79,7 +79,11 @@ def callback():
     )
 
     session['oauth2_token'] = token
-    return redirect(url_for('.me'))
+
+    user = user_data()
+    session['user'] = user['user']
+    session['guilds'] = user['guilds']
+    return redirect('/dashboard/servers')
 
 
 def user_data():
@@ -93,22 +97,14 @@ def user_data():
     }
 
 
-@app.route('/me')
-def me():
-    user = user_data()
-    session['user'] = user['user']
-    session['guilds'] = user['guilds']
-    return redirect(url_for('.servers'))
-
-
 def requires_auth(func):
     @wraps(func)
     def decorator(*args, **kwargs):
         if session.get('oauth2_token') is None:
-            return redirect(url_for('.auth'))
+            return redirect('/dashboard/login')
 
         if session.get('user') is None or session.get('guilds') is None:
-            return redirect(url_for('.auth'))
+            return redirect('/dashboard/login')
 
         return func(*args, **kwargs)
     return decorator
@@ -118,14 +114,14 @@ def requires_server(func):
     @wraps(func)
     def decorator(*args, **kwargs):
         if session.get('active_server') is None:
-            return redirect(url_for('.servers'))
+            return redirect('/dashboard/servers')
 
         return func(*args, **kwargs)
 
     return decorator
 
 
-@app.route('/servers')
+@app.route('/dashboard/servers')
 @requires_auth
 def servers():
     guilds = []
@@ -139,22 +135,23 @@ def servers():
 # TODO: lots of security stuff BUT most importantly change this VVV
 # to prevent arbitrary server id's and unauthorised management
 # should also add a check for rate limiting
-@app.route('/server/<server>')
+@app.route('/dashboard/server/<server>')
 @requires_auth
 def set_server(server):
     session['active_server'] = server
-    return redirect('/')
+    return redirect('/dashboard')
 
 
-@app.route('/')
+@app.route('/dashboard')
 @requires_auth
 @requires_server
 def index():
     plugins, enabled_plugins = PLUGINS, rpc_client().plugins_for_server(session.get('active_server'))
+    print(enabled_plugins)
     return render_template('default.html', plugins=plugins, enabled_plugins=enabled_plugins)
 
 
-@app.route('/plugins/<plugin>')
+@app.route('/dashboard/plugins/<plugin>')
 @requires_auth
 @requires_server
 def get_plugin(plugin):
@@ -174,7 +171,7 @@ def get_plugin(plugin):
         )
 
 
-@app.route('/update_commands', methods=['POST'])
+@app.route('/dashboard/update_commands', methods=['POST'])
 @requires_auth
 @requires_server
 def update_commands():
@@ -204,7 +201,7 @@ def update_commands():
     else:
         flash('Oops! Something went wrong...')
 
-    return redirect(f'/plugins/{plugin}')
+    return redirect(f'/dashboard/plugins/{plugin}')
 
 
 if __name__ == '__main__':

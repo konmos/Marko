@@ -44,7 +44,7 @@
                 <h6 class="border-bottom border-gray pb-2 mb-0">Servers</h6>
                 {% for server in servers -%}
                 <div class="media text-muted pt-3">
-                    <a href="/server/{{ server['id'] }}">
+                    <a href="/dashboard/server/{{ server['id'] }}">
                         {%- if server['icon'] -%}
                         <img data-toggle="tooltip" title="{{ server['name'] }}" data-placement="bottom" class="mr-2 rounded" src="https://cdn.discordapp.com/icons/{{ server['id'] }}/{{ server['icon'] }}.png?size=32">
                         {% else %}

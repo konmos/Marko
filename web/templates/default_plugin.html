@@ -4,7 +4,7 @@
     <h1 class="display-4">{{ plugin }}</h1>
 </div>
 
-<form role="form" action="/update_commands" method="POST">
+<form role="form" action="/dashboard/update_commands" method="POST">
     <input type="hidden" name="_plugin" readonly value="{{plugin}}">
     {% for cmd in commands -%}
     <div class="card">
