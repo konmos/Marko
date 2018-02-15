@@ -43,14 +43,14 @@ class mBot(discord.Client):
         self.plugin_manager.load_plugins()
         self.plugin_manager.load_commands()
 
+        self.rpc = RPC(self)
         self.rpc_server = None
-        self.exposed_rpc = RPC(self)
 
         self.executor = ThreadPoolExecutor()
         self.loop.set_default_executor(self.executor)
 
-    def _expose_rpc(self):
-        self.rpc_server = RPCServer(self.exposed_rpc)
+    def run_rpc_server(self):
+        self.rpc_server = RPCServer(self.rpc, port=4242+self.shard_id+1)
         self.rpc_server.start()
 
     async def close(self):
@@ -191,7 +191,7 @@ class mBot(discord.Client):
         for plugin in self.plugin_manager.plugins:
             self.loop.create_task(plugin.on_ready())
 
-        self._expose_rpc()
+        self.run_rpc_server()
 
     async def on_resumed(self):
         '''Called when the client has resumed a session.'''
