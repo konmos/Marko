@@ -228,13 +228,17 @@ def servers():
     return render_template('servers.html', servers=guilds)
 
 
-# TODO: lots of security stuff BUT most importantly change this VVV
-# to prevent arbitrary server id's and unauthorised management
 @app.route('/dashboard/server/<server>')
 @requires_auth
 def set_server(server):
-    session['active_server'] = server
-    return redirect('/dashboard')
+    perms = [2146958591, 8]
+    guilds = [g['id'] for g in get_user_guilds() if g.get('owner', False) or g.get('permissions, 0') in perms]
+
+    if server in guilds:
+        session['active_server'] = server
+        return redirect('/dashboard')
+
+    return redirect('/dashboard/servers')
 
 
 @app.route('/dashboard')
