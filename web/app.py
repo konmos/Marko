@@ -1,11 +1,12 @@
 import os
 import zerorpc
-from flask import Flask, render_template, session, redirect, request, flash
-from requests_oauthlib import OAuth2Session
 from functools import wraps
-
+from pymongo import MongoClient
+from requests_oauthlib import OAuth2Session
+from flask import Flask, render_template, session, redirect, request, flash
 
 RPC_HOST = os.environ.get('RPC_HOST', 'tcp://127.0.0.1:4243')
+MONGO_HOST = os.environ.get('MONGO_HOST', 'mongodb://localhost:27017/')
 
 OAUTH2_CLIENT_ID = os.environ['OAUTH2_CLIENT_ID']
 OAUTH2_CLIENT_SECRET = os.environ['OAUTH2_CLIENT_SECRET']
@@ -19,17 +20,81 @@ app = Flask(__name__)
 app.debug = True
 app.config['SECRET_KEY'] = OAUTH2_CLIENT_SECRET
 
+db = MongoClient(MONGO_HOST)
+
 if 'http://' in OAUTH2_REDIRECT_URI:
     os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = 'true'
 
 
-def rpc_client():
+def get_rpc_client():
     client = zerorpc.Client()
     client.connect(RPC_HOST)
     return client
 
 
-PLUGINS = rpc_client().installed_plugins()
+def enable_commands(server_id, commands):
+    success, rpc = [], get_rpc_client()
+
+    for command in commands:
+        plugin = rpc.plugin_for_command(command)
+
+        # Skip Help plugin.
+        if plugin == 'Help' or not plugin:
+            success.append(False)
+            continue
+
+        doc = db.bot_data.config.find_one(
+            {'server_id': server_id, 'plugins': {'$elemMatch': {'name': plugin}}}
+        )
+
+        if doc:
+            ret = db.bot_data.config.update_one(
+                {'server_id': server_id, 'plugins': {'$elemMatch': {'name': plugin}}},
+                {'$addToSet': {'plugins.$.commands': command}}
+            )
+
+            success.append(bool(ret))
+            continue
+
+        success.append(False)
+
+    return all(success)
+
+
+def disable_commands(server_id, commands):
+    success, rpc = [], get_rpc_client()
+
+    for command in commands:
+        plugin = rpc.plugin_for_command(command)
+
+        # Skip Help plugin.
+        if plugin == 'Help' or not plugin:
+            success.append(False)
+            continue
+
+        doc = db.bot_data.config.find_one(
+            {'server_id': server_id, 'plugins': {'$elemMatch': {'name': plugin}}}
+        )
+
+        if doc:
+            ret = db.bot_data.config.update_one(
+                {'server_id': server_id, 'plugins': {'$elemMatch': {'name': plugin}}},
+                {'$pull': {'plugins.$.commands': command}}
+            )
+
+            success.append(bool(ret))
+            continue
+
+        success.append(False)
+
+    return all(success)
+
+
+def plugins_for_server(server_id):
+    doc = db.bot_data.config.find_one({'server_id': server_id})
+
+    if doc:
+        return {plugin['name']: plugin['commands'] for plugin in doc['plugins']}
 
 
 def token_updater(token):
@@ -146,7 +211,10 @@ def set_server(server):
 @requires_auth
 @requires_server
 def index():
-    plugins, enabled_plugins = PLUGINS, rpc_client().plugins_for_server(session.get('active_server'))
+    rpc = get_rpc_client()
+    plugins = rpc.installed_plugins()
+    enabled_plugins = plugins_for_server(session.get('active_server'))
+
     return render_template('default.html', plugins=plugins, enabled_plugins=enabled_plugins)
 
 
@@ -154,15 +222,15 @@ def index():
 @requires_auth
 @requires_server
 def get_plugin(plugin):
-    rpc = rpc_client()
-    enabled_plugins = rpc.plugins_for_server(session.get('active_server'))
+    rpc = get_rpc_client()
+    enabled_plugins = plugins_for_server(session.get('active_server'))
 
     if os.path.isfile(os.path.join('templates', plugin + '.html')):
         return render_template(plugin + '.html')
     else:
         return render_template(
             'default_plugin.html',
-            plugins=PLUGINS,
+            plugins=rpc.installed_plugins(),
             plugin=plugin,
             commands=rpc.commands_for_plugin(plugin),
             enabled_plugins=enabled_plugins,
@@ -174,13 +242,13 @@ def get_plugin(plugin):
 @requires_auth
 @requires_server
 def update_commands():
-    rpc = rpc_client()
+    rpc = get_rpc_client()
 
     data = dict(request.form)
     plugin = data['_plugin'][0]
 
     commands = rpc.commands_for_plugin(plugin)
-    enabled_commands = rpc.plugins_for_server(session.get('active_server')).get(plugin)
+    enabled_commands = plugins_for_server(session.get('active_server')).get(plugin, [])
 
     to_disable, to_enable = [], []
 
@@ -192,8 +260,8 @@ def update_commands():
             # command was enabled
             to_enable.append(cmd)
 
-    enabled = rpc.enable_commands(session.get('active_server'), to_enable)
-    disabled = rpc.disable_commands(session.get('active_server'), to_disable)
+    enabled = enable_commands(session.get('active_server'), to_enable)
+    disabled = disable_commands(session.get('active_server'), to_disable)
 
     if enabled and disabled:
         flash('OK! Configuration updated!')

@@ -1,10 +1,5 @@
-from threading import Thread
-
-import gevent
 import zerorpc
-from gevent import Timeout
-from pymongo import MongoClient
-from gevent.event import AsyncResult
+from threading import Thread
 
 
 class RPCServer(Thread):
@@ -27,16 +22,15 @@ class RPCServer(Thread):
 class RPC(object):
     def __init__(self, mbot):
         self.mbot = mbot
-        self.db = MongoClient(mbot.config.mongo.host, mbot.config.mongo.port)
 
     def installed_plugins(self):
         return [plugin.__class__.__name__ for plugin in self.mbot.plugin_manager.plugins]
 
-    def plugins_for_server(self, server_id):
-        doc = self.db.bot_data.config.find_one({'server_id': server_id})
+    def installed_commands(self):
+        return list(self.mbot.plugin_manager.commands)
 
-        if doc:
-            return {plugin['name']: plugin['commands'] for plugin in doc['plugins']}
+    def plugin_for_command(self, cmd):
+        return self.mbot.plugin_manager._plugin_for_cmd(cmd)
 
     def commands_for_plugin(self, plugin_name):
         commands = {}
@@ -52,82 +46,6 @@ class RPC(object):
                 }
 
         return commands
-
-    def enable_commands(self, server_id, commands):
-        result = AsyncResult()
-
-        def task():
-            success = []
-
-            for command in commands:
-                plugin = self.mbot.plugin_manager._plugin_for_cmd(command)
-
-                # Skip Help plugin.
-                if plugin == 'Help' or not plugin:
-                    success.append(False)
-                    continue
-
-                doc = self.db.bot_data.config.find_one(
-                    {'server_id': server_id, 'plugins': {'$elemMatch': {'name': plugin}}}
-                )
-
-                if doc:
-                    ret = self.db.bot_data.config.update_one(
-                        {'server_id': server_id, 'plugins': {'$elemMatch': {'name': plugin}}},
-                        {'$addToSet': {'plugins.$.commands': command}}
-                    )
-
-                    success.append(bool(ret))
-                    continue
-
-                success.append(False)
-
-            result.set(all(success))
-
-        gevent.spawn(task)
-
-        try:
-            return result.get(timeout=30)
-        except Timeout:
-            return None
-
-    def disable_commands(self, server_id, commands):
-        result = AsyncResult()
-
-        def task():
-            success = []
-
-            for command in commands:
-                plugin = self.mbot.plugin_manager._plugin_for_cmd(command)
-
-                # Skip Help plugin.
-                if plugin == 'Help' or not plugin:
-                    success.append(False)
-                    continue
-
-                doc = self.db.bot_data.config.find_one(
-                    {'server_id': server_id, 'plugins': {'$elemMatch': {'name': plugin}}}
-                )
-
-                if doc:
-                    ret = self.db.bot_data.config.update_one(
-                        {'server_id': server_id, 'plugins': {'$elemMatch': {'name': plugin}}},
-                        {'$pull': {'plugins.$.commands': command}}
-                    )
-
-                    success.append(bool(ret))
-                    continue
-
-                success.append(False)
-
-            result.set(all(success))
-
-        gevent.spawn(task)
-
-        try:
-            return result.get(timeout=30)
-        except Timeout:
-            return None
 
     def reload_plugins(self):
         async def task():
