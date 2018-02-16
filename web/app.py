@@ -6,6 +6,7 @@ from pymongo import MongoClient
 from requests_oauthlib import OAuth2Session
 from flask import Flask, render_template, session, redirect, request, flash
 
+# CONFIG
 RPC_HOST = os.environ.get('RPC_HOST', 'tcp://127.0.0.1:4243')
 MONGO_HOST = os.environ.get('MONGO_HOST', 'mongodb://localhost:27017/')
 
@@ -27,12 +28,14 @@ if 'http://' in OAUTH2_REDIRECT_URI:
     os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = 'true'
 
 
+# RPC
 def get_rpc_client():
     client = zerorpc.Client()
     client.connect(RPC_HOST)
     return client
 
 
+# MONGO
 def enable_commands(server_id, commands):
     success, rpc = [], get_rpc_client()
 
@@ -116,6 +119,7 @@ def cache_user_guilds(user_id, guilds):
         )
 
 
+# OAUTH
 def token_updater(token):
     session['oauth2_token'] = token
 
@@ -136,8 +140,14 @@ def make_session(token=None, state=None, scope=None):
     )
 
 
+# DASHBOARD
+@app.route('/')
+def home():
+    return 'Home'
+
+
 @app.route('/dashboard/login')
-def auth():
+def login():
     scope = request.args.get(
         'scope',
         'identify guilds'
@@ -147,6 +157,12 @@ def auth():
     authorization_url, state = discord.authorization_url(AUTHORIZATION_BASE_URL)
     session['oauth2_state'] = state
     return redirect(authorization_url)
+
+
+@app.route('/dashboard/logout')
+def logout():
+    session.clear()
+    return redirect('/')
 
 
 @app.route('/dashboard/auth')
