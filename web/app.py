@@ -1,4 +1,5 @@
 import os
+import time
 import zerorpc
 from functools import wraps
 from pymongo import MongoClient
@@ -97,6 +98,24 @@ def plugins_for_server(server_id):
         return {plugin['name']: plugin['commands'] for plugin in doc['plugins']}
 
 
+def get_cached_user_guilds(user_id):
+    doc = db.bot_data.user_guilds.find_one({'user_id': user_id})
+
+    if doc:
+        return doc['guilds']
+
+    return {}
+
+
+def cache_user_guilds(user_id, guilds):
+    if guilds and isinstance(guilds, list):
+        return db.bot_data.user_guilds.update_one(
+            {'user_id': user_id},
+            {'$set': {'guilds': guilds}},
+            upsert=True
+        )
+
+
 def token_updater(token):
     session['oauth2_token'] = token
 
@@ -145,32 +164,49 @@ def callback():
 
     session['oauth2_token'] = token
 
-    user = user_data()
-    session['user'] = user['user']
-    session['guilds'] = user['guilds']
+    user = get_user()
+    session['user'] = user
+    cache_user_guilds(user['id'], get_user_guilds())
+
     return redirect('/dashboard/servers')
 
 
-def user_data():
+def get_user():
     discord = make_session(token=session.get('oauth2_token'))
     user = discord.get(API_BASE_URL + '/users/@me').json()
-    guilds = discord.get(API_BASE_URL + '/users/@me/guilds').json()
+    return user
 
-    return {
-        'user': user,
-        'guilds': guilds
-    }
+
+def get_user_guilds():
+    # Let's try to prevent a rate limit.
+    if int(session.get('rate_limit_remaining', 1)) < 1 and int(session.get('rate_limit_reset', 0)) > time.time():
+        return get_cached_user_guilds(session.get('user', {'id': 0})['id'])
+
+    # Ooops.... We've already been rate limited.
+    elif int(session.get('rate_limit_retry', 0)) > time.time():
+        return get_cached_user_guilds(session.get('user', {'id': 0})['id'])
+
+    discord = make_session(token=session.get('oauth2_token'))
+    guilds = discord.get(API_BASE_URL + '/users/@me/guilds')
+
+    json = guilds.json()
+
+    if isinstance(json, dict) and json.get('message', '') == 'You are being rate limited.':
+        # Discord docs say retry time is in milliseconds, but it is actually in seconds!??
+        session['rate_limit_retry'] = time.time() + int(json.get('retry_after', 1))
+        return get_cached_user_guilds(session.get('user', {'id': 0})['id'])
+
+    session['rate_limit_remaining'] = guilds.headers.get('X-RateLimit-Remaining', 1)
+    session['rate_limit_reset'] = guilds.headers.get('X-RateLimit-Reset', 0)
+
+    return json
 
 
 def requires_auth(func):
     @wraps(func)
     def decorator(*args, **kwargs):
-        if session.get('oauth2_token') is None:
+        if session.get('oauth2_token') is None or session.get('user') is None:
             return redirect('/dashboard/login')
-
-        if session.get('user') is None or session.get('guilds') is None:
-            return redirect('/dashboard/login')
-
         return func(*args, **kwargs)
     return decorator
 
@@ -180,26 +216,20 @@ def requires_server(func):
     def decorator(*args, **kwargs):
         if session.get('active_server') is None:
             return redirect('/dashboard/servers')
-
         return func(*args, **kwargs)
-
     return decorator
 
 
 @app.route('/dashboard/servers')
 @requires_auth
 def servers():
-    guilds = []
-    for guild in session.get('guilds'):
-        if guild['owner'] or guild['permissions'] in [2146958591, 8]:
-            guilds.append(guild)
-
+    perms = [2146958591, 8]
+    guilds = [g for g in get_user_guilds() if g.get('owner', False) or g.get('permissions, 0') in perms]
     return render_template('servers.html', servers=guilds)
 
 
 # TODO: lots of security stuff BUT most importantly change this VVV
 # to prevent arbitrary server id's and unauthorised management
-# should also add a check for rate limiting
 @app.route('/dashboard/server/<server>')
 @requires_auth
 def set_server(server):
