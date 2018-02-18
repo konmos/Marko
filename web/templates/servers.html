@@ -1,81 +1,55 @@
-<!doctype html>
-<html lang="en">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-        <meta name="description" content="">
-        <meta name="author" content="">
+{% extends "home.html" %}
+{% block title %}Marko - Your Servers{% endblock %}
 
-        <title>Your Servers</title>
+{% block navbar %}
+<header class="masthead mb-auto">
+  <div class="inner">
+    <h3 class="masthead-brand">Marko</h3>
+    <nav class="nav nav-masthead justify-content-center">
+      <a class="nav-link" href="/">Home</a>
+      <a class="nav-link active" href="/dashboard/servers">Your Servers</a>
+      <a class="nav-link" href="/dashboard">Dashboard</a>
+    </nav>
+  </div>
+</header>
+{% endblock %}
 
-        <!-- Bootstrap core CSS -->
-        <link href="{{ url_for('static', filename='css/bootstrap.css') }}" rel="stylesheet">
+{% block content %}
+<div class="d-flex align-items-center p-3 my-3 text-white-50 bg-blue rounded box-shadow">
+    <div class="lh-100">
+        <h6 class="mb-0 text-white lh-100">These are your servers</h6>
+        <small>Just click the icon of the server you want to manage</small>
+    </div>
+</div>
 
-        <style>
-            html,
-            body {
-                overflow-x: hidden; /* Prevent scroll on narrow devices */
-            }
+<div class="my-3 p-3 bg-white rounded box-shadow">
+    <h6 class="border-bottom border-gray pb-2 mb-0">Servers</h6>
+    {% for server in servers -%}
+    <div class="media text-muted pt-3">
+        <a href="/dashboard/server/{{ server['id'] }}">
+            {%- if server['icon'] -%}
+            <img data-toggle="tooltip" title="{{ server['name'] }}" data-placement="bottom" class="mr-2 rounded" src="https://cdn.discordapp.com/icons/{{ server['id'] }}/{{ server['icon'] }}.png?size=32">
+            {% else %}
+            <img data-toggle="tooltip" title="{{ server['name'] }}" data-placement="bottom" class="mr-2 rounded" src="http://placehold.it/32x32">
+            {% endif %}
+        </a>
+        <p class="media-body pb-3 mb-0 small lh-125 border-bottom border-gray">
+            <strong class="d-block text-gray-dark">{{ server['name'] }}</strong>
+            {% if server['owner'] %}
+            You are the owner of this server.
+            {% else %}
+            Your permissions in this server: {{ server['permissions'] }}
+            {% endif %}
+        </p>
+    </div>
+    {%- endfor %}
+</div>
+{% endblock %}
 
-            body {
-                padding-top: 56px;
-            }
-
-            .text-white-50 { color: rgba(255, 255, 255, .5); }
-            .bg-blue { background-color: var(--blue); }
-            .border-bottom { border-bottom: 1px solid #e5e5e5; }
-            .box-shadow { box-shadow: 0 .25rem .75rem rgba(0, 0, 0, .05); }
-            .lh-100 { line-height: 1; }
-            .lh-125 { line-height: 1.25; }
-            .lh-150 { line-height: 1.5; }
-        </style>
-    </head>
-
-    <body>
-        <main role="main" class="container">
-            <div class="d-flex align-items-center p-3 my-3 text-white-50 bg-blue rounded box-shadow">
-                <div class="lh-100">
-                    <h6 class="mb-0 text-white lh-100">These are your servers</h6>
-                    <small>Just click the icon of the server you want to manage</small>
-                </div>
-            </div>
-
-            <div class="my-3 p-3 bg-white rounded box-shadow">
-                <h6 class="border-bottom border-gray pb-2 mb-0">Servers</h6>
-                {% for server in servers -%}
-                <div class="media text-muted pt-3">
-                    <a href="/dashboard/server/{{ server['id'] }}">
-                        {%- if server['icon'] -%}
-                        <img data-toggle="tooltip" title="{{ server['name'] }}" data-placement="bottom" class="mr-2 rounded" src="https://cdn.discordapp.com/icons/{{ server['id'] }}/{{ server['icon'] }}.png?size=32">
-                        {% else %}
-                        <img data-toggle="tooltip" title="{{ server['name'] }}" data-placement="bottom" class="mr-2 rounded" src="http://placehold.it/32x32">
-                        {% endif %}
-                    </a>
-                    <p class="media-body pb-3 mb-0 small lh-125 border-bottom border-gray">
-                        <strong class="d-block text-gray-dark">{{ server['name'] }}</strong>
-                        {% if server['owner'] %}
-                        You are the owner of this server.
-                        {% else %}
-                        Your permissions in this server: {{ server['permissions'] }}
-                        {% endif %}
-                    </p>
-                </div>
-                {%- endfor %}
-            </div>
-        </main>
-
-        <!-- Bootstrap core JavaScript
-        ================================================== -->
-        <!-- Placed at the end of the document so the pages load faster -->
-        <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN" crossorigin="anonymous"></script>
-        <script>window.jQuery || document.write('<script src="https://code.jquery.com/jquery-3.2.1.slim.min.js"><\/script>')</script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
-        <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
-
-        <script>
-            $(function () {
-                $('[data-toggle="tooltip"]').tooltip()
-            });
-        </script>
-    </body>
-</html>
+{% block scripts %}
+<script>
+    $(function () {
+        $('[data-toggle="tooltip"]').tooltip()
+    });
+</script>
+{% endblock %}
