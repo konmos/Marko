@@ -265,7 +265,7 @@ def index():
     plugins = rpc.installed_plugins()
     enabled_plugins = plugins_for_server(session.get('active_server'))
 
-    return render_template('default.html', plugins=plugins, enabled_plugins=enabled_plugins)
+    return render_template('dashboard_home.html', plugins=plugins, enabled_plugins=enabled_plugins)
 
 
 @app.route('/dashboard/plugins/<plugin>')
