@@ -264,8 +264,14 @@ def index():
     rpc = get_rpc_client()
     plugins = rpc.installed_plugins()
     enabled_plugins = plugins_for_server(session.get('active_server'))
+    guilds = {g['id']: g['name'] for g in get_cached_user_guilds(session.get('user')['id'])}
 
-    return render_template('dashboard_home.html', plugins=plugins, enabled_plugins=enabled_plugins)
+    return render_template(
+        'dashboard_home.html',
+        plugins=plugins,
+        enabled_plugins=enabled_plugins,
+        server_name=guilds.get(session.get('active_server'), session.get('active_server'))
+    )
 
 
 @app.route('/dashboard/plugins/<plugin>')
@@ -274,6 +280,7 @@ def index():
 def get_plugin(plugin):
     rpc = get_rpc_client()
     enabled_plugins = plugins_for_server(session.get('active_server'))
+    guilds = {g['id']: g['name'] for g in get_cached_user_guilds(session.get('user')['id'])}
 
     if os.path.isfile(os.path.join('templates', plugin + '.html')):
         return render_template(plugin + '.html')
@@ -284,7 +291,8 @@ def get_plugin(plugin):
             plugin=plugin,
             commands=rpc.commands_for_plugin(plugin),
             enabled_plugins=enabled_plugins,
-            enabled_commands=enabled_plugins.get(plugin, [])
+            enabled_commands=enabled_plugins.get(plugin, []),
+            server_name=guilds.get(session.get('active_server'), session.get('active_server'))
         )
 
 
