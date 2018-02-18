@@ -1,7 +1,21 @@
+a,
+a:focus,
+a:hover {
+  color: #fff;
+}
+
+.white-link {
+  color: #EEEEEE
+}
+
+.white-link:hover {
+  color: #9E9E9E
+}
+
 html,
 body {
   height: 100%;
-  background-color: #424242;
+  background-color: #333;
   overflow-x: hidden; /* Prevent scroll on narrow devices */
 }
 
@@ -17,7 +31,7 @@ body {
 }
 
 .content {
-  padding-top: 20px;
+  padding-top: 50px;
   padding-bottom: 20px;
 }
 
@@ -75,7 +89,10 @@ body {
 .text-white-50 { color: rgba(255, 255, 255, .5); }
 .bg-blue { background-color: var(--blue); }
 .border-bottom { border-bottom: 1px solid #e5e5e5; }
+.border-bottom-padded { border-bottom: 1px solid #e5e5e5; padding-bottom: 10px; }
 .box-shadow { box-shadow: 0 .25rem .75rem rgba(0, 0, 0, .05); }
 .lh-100 { line-height: 1; }
 .lh-125 { line-height: 1.25; }
 .lh-150 { line-height: 1.5; }
+.text-grey { color: #9E9E9E; }
+.text-not-white { color: #EEEEEE; }

@@ -146,6 +146,21 @@ def home():
     return render_template('home.html')
 
 
+@app.route('/commands')
+def commands():
+    rpc = get_rpc_client()
+    all_commands = []
+    all_plugins = rpc.installed_plugins()
+
+    for plugin in all_plugins:
+        cmd = rpc.commands_for_plugin(plugin)
+
+        if cmd:
+            all_commands.append((plugin, cmd))
+
+    return render_template('commands.html', all_commands=all_commands)
+
+
 @app.route('/dashboard/login')
 def login():
     scope = request.args.get(
