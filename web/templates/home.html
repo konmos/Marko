@@ -23,19 +23,25 @@
   <body>
     <div class="container">
       <div class="d-flex p-3 mx-auto flex-column">
-          {% block navbar %}
           <header class="masthead mb-auto border-bottom-padded">
             <div class="inner" id="myNav">
-              <h3 class="masthead-brand"><a href="/"><img src="{{ url_for('static', filename='marko.png') }}" height="30"></a></h3>
+              <h3 class="masthead-brand">
+                <a href="/"><img src="{{ url_for('static', filename='marko.png') }}" height="30"></a>
+                <a href="https://discordapp.com/api/oauth2/authorize?client_id=293103413716058132&permissions=2146958591&redirect_uri=http%3A%2F%2Flocalhost%3A5000%2Fdashboard%2Fauth&scope=bot">
+                  <button type="button" class="btn btn-invite btn-sm">Invite Marko</button>
+                </a>
+              </h3>
+
               <nav class="nav nav-masthead justify-content-center">
+                {% block navbar %}
                 <a class="nav-link active" href="/">Home</a>
                 <a class="nav-link" href="/commands">Commands</a>
                 <a class="nav-link" href="/dashboard/servers">Your Servers</a>
                 <a class="nav-link" href="/dashboard">Dashboard</a>
+                {% endblock %}
               </nav>
             </div>
           </header>
-          {% endblock %}
 
         <main class="content">
           {% block content %}

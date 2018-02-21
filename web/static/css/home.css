@@ -12,6 +12,19 @@ a:hover {
   color: #9E9E9E
 }
 
+.btn-invite {
+    border-radius: 1px;
+    border-color: #fff;
+    background-color: #7289DA;
+    color: #fff;
+    margin-left: 10px;
+}
+
+.btn-invite:hover,
+.btn-invite:focus {
+    background-color: #6d78a4;
+}
+
 html,
 body {
   height: 100%;
