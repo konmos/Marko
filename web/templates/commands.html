@@ -3,8 +3,8 @@
 
 {% block navbar %}
 <header class="masthead mb-auto border-bottom-padded">
-  <div class="inner">
-    <h3 class="masthead-brand">Marko</h3>
+  <div class="inner" id="myNav">
+    <h3 class="masthead-brand"><a href="/"><img src="{{ url_for('static', filename='marko.png') }}" height="30"></a></h3>
     <nav class="nav nav-masthead justify-content-center">
       <a class="nav-link" href="/">Home</a>
       <a class="nav-link active" href="/commands">Commands</a>

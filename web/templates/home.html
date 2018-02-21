@@ -7,12 +7,14 @@
     <meta name="author" content="">
 
     <title>{% block title %}Marko - Home{% endblock %}</title>
+    <link rel="shortcut icon" type="image/png" href="{{ url_for('static', filename='marko2.png') }}"/>
 
     <!-- Bootstrap core CSS -->
     <link href="{{ url_for('static', filename='css/bootstrap.css') }}" rel="stylesheet">
 
     <!-- Custom styles for this template -->
     <link href="{{ url_for('static', filename='css/home.css') }}" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.5.2/animate.min.css">
 
     {% block head %}
     {% endblock %}
@@ -21,19 +23,19 @@
   <body>
     <div class="container">
       <div class="d-flex p-3 mx-auto flex-column">
-        {% block navbar %}
-        <header class="masthead mb-auto border-bottom-padded">
-          <div class="inner">
-            <h3 class="masthead-brand">Marko</h3>
-            <nav class="nav nav-masthead justify-content-center">
-              <a class="nav-link active" href="/">Home</a>
-              <a class="nav-link" href="/commands">Commands</a>
-              <a class="nav-link" href="/dashboard/servers">Your Servers</a>
-              <a class="nav-link" href="/dashboard">Dashboard</a>
-            </nav>
-          </div>
-        </header>
-        {% endblock %}
+          {% block navbar %}
+          <header class="masthead mb-auto border-bottom-padded">
+            <div class="inner" id="myNav">
+              <h3 class="masthead-brand"><a href="/"><img src="{{ url_for('static', filename='marko.png') }}" height="30"></a></h3>
+              <nav class="nav nav-masthead justify-content-center">
+                <a class="nav-link active" href="/">Home</a>
+                <a class="nav-link" href="/commands">Commands</a>
+                <a class="nav-link" href="/dashboard/servers">Your Servers</a>
+                <a class="nav-link" href="/dashboard">Dashboard</a>
+              </nav>
+            </div>
+          </header>
+          {% endblock %}
 
         <main class="content">
           {% block content %}
@@ -49,6 +51,10 @@
     <script>window.jQuery || document.write('<script src="https://code.jquery.com/jquery-3.2.1.slim.min.js"><\/script>')</script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
+
+    <script>
+      $('#myNav').addClass('animated bounce');
+    </script>
 
     {% block scripts %}
     {% endblock %}
