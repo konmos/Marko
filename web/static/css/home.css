@@ -4,6 +4,10 @@ a:hover {
   color: #fff;
 }
 
+hr {
+  background-color: #99AAB5;
+}
+
 .white-link {
   color: #EEEEEE;
 }
