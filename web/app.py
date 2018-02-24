@@ -4,7 +4,7 @@ import zerorpc
 from functools import wraps
 from pymongo import MongoClient
 from requests_oauthlib import OAuth2Session
-from flask import Flask, render_template, session, redirect, request, flash
+from flask import Flask, render_template, session, redirect, request, flash, abort
 
 # CONFIG
 RPC_HOST = os.environ.get('RPC_HOST', 'tcp://127.0.0.1:4243')
@@ -138,6 +138,24 @@ def make_session(token=None, state=None, scope=None):
         auto_refresh_url=TOKEN_URL,
         token_updater=token_updater
     )
+
+
+# FLASK STUFF
+@app.before_request
+def csrf_protect():
+    if request.method == 'POST':
+        token = session.pop('_csrf_token', None)
+        if not token or token != request.form.get('_csrf_token'):
+            abort(403)
+
+
+def generate_csrf_token():
+    if '_csrf_token' not in session:
+        session['_csrf_token'] = os.urandom(8).hex()
+
+    return session['_csrf_token']
+
+app.jinja_env.globals['csrf_token'] = generate_csrf_token
 
 
 # DASHBOARD

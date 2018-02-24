@@ -6,6 +6,7 @@
 
 <form role="form" action="/dashboard/update_commands" method="POST">
     <input type="hidden" name="_plugin" readonly value="{{plugin}}">
+    <input name=_csrf_token type=hidden value="{{ csrf_token() }}">
     {% for cmd in commands -%}
     <div class="card">
         <h5 class="card-header">{{ cmd }}</h5>
