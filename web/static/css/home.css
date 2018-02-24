@@ -103,6 +103,18 @@ body {
   text-align: center;
 }
 
+.nav-icon-margin {
+  margin-left: 10px;
+}
+
+.nav-icon .active,
+.nav-icon-margin .active,
+.nav-icon:hover, .nav-icon:focus,
+.nav-icon-margin:hover, .nav-icon-margin:focus {
+  border-bottom: 0;
+  color: #fff;
+}
+
 .text-white-50 { color: rgba(255, 255, 255, .5); }
 .bg-blue { background-color: var(--blue); }
 .border-bottom { border-bottom: 1px solid #e5e5e5; }
