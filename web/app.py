@@ -143,7 +143,7 @@ def make_session(token=None, state=None, scope=None):
 # DASHBOARD
 @app.route('/')
 def home():
-    return render_template('home.html')
+    return render_template('index.html')
 
 
 @app.route('/commands')
