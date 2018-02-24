@@ -1,1 +1,77 @@
 {% extends "home.html" %}
+
+{% block content %}
+<div class="text-center section">
+  <img src="{{ url_for('static', filename='images/marko.png') }}" class="img-fluid">
+</div>
+<p class="lead text-white text-center">Marko is a Discord bot with a plugin for everything and a focus on social features (at least that's the plan)!</p><hr class="half-section" />
+
+<div class="card-columns">
+  <div class="card bg-dark box-shadow border-blurple">
+    <img class="card-img box-shadow" src="{{ url_for('static', filename='images/mod.png') }}">
+    <div class="card-body bg-dark">
+      <h5 class="card-title text-white">Moderation</h5>
+      <p class="card-text text-grey">Marko comes with moderation tools such as mass message deletion, blacklisting features, and more to make an admin's life easier!</p>
+    </div>
+  </div>
+
+  <div class="card bg-dark box-shadow border-blurple">
+    <img class="card-img box-shadow" src="{{ url_for('static', filename='images/rank.png') }}">
+    <div class="card-body bg-dark">
+      <h5 class="card-title text-white">Ranking</h5>
+      <p class="card-text text-grey">One of Marko's core features is a rich and fully featured ranking system with xp, levels, and custom profiles...</p>
+    </div>
+  </div>
+
+  <div class="card bg-dark box-shadow border-blurple">
+    <img class="card-img box-shadow" src="{{ url_for('static', filename='images/reddit.png') }}">
+    <div class="card-body bg-dark">
+      <h5 class="card-title text-white">Reddit</h5>
+      <p class="card-text text-grey">Thanks to Marko you can now browse reddit without even leaving the Discord client. Text and image posts are supported!</p>
+    </div>
+  </div>
+
+  <div class="card bg-dark box-shadow border-blurple">
+    <img class="card-img box-shadow" src="{{ url_for('static', filename='images/search.png') }}">
+    <div class="card-body bg-dark">
+      <h5 class="card-title text-white">Web Search</h5>
+      <p class="card-text text-grey">Ever wanted to search something but didn't want to bother with opening a browser? Now you can.</p>
+    </div>
+  </div>
+
+  <div class="card bg-dark box-shadow border-blurple">
+    <img class="card-img box-shadow" src="{{ url_for('static', filename='images/steam.png') }}">
+    <div class="card-body bg-dark">
+      <h5 class="card-title text-white">Gaming Integration</h5>
+      <p class="card-text text-grey">Just like Discord is an app for gamers, Marko can be a bot for gamers. Steam integration is here and more is coming soon!</p>
+    </div>
+  </div>
+
+  <div class="card bg-dark box-shadow border-blurple">
+    <img class="card-img box-shadow" src="{{ url_for('static', filename='images/config.png') }}">
+    <div class="card-body bg-dark">
+      <h5 class="card-title text-white">Powerful Configuration</h5>
+      <p class="card-text text-grey">Marko was built with extensibliity and configuration in mind. Per server configs allow you to enable/disable plugins, change the prefix, ignore channels, and much more.</p>
+    </div>
+  </div>
+
+  <div class="card bg-dark box-shadow border-blurple">
+    <img class="card-img box-shadow" src="{{ url_for('static', filename='images/reminders.png') }}">
+    <div class="card-body bg-dark">
+      <h5 class="card-title text-white">Reminders</h5>
+      <p class="card-text text-grey">Never again will you forget to <del>study for your exam</del> catch up on your favourite show with the easy to use remindme command...</p>
+    </div>
+  </div>
+
+  <div class="card bg-dark box-shadow border-blurple">
+    <img class="card-img box-shadow" src="{{ url_for('static', filename='images/voice.png') }}">
+    <div class="card-body bg-dark">
+      <h5 class="card-title text-white">Voice Player</h5>
+      <p class="card-text text-grey">With hundreds of supported streaming sites, you can now listen to music, podcasts, or streams right from the Discord voice chat! Make sure to invite some friends too...</p>
+    </div>
+  </div>
+</div>
+
+<hr class="half-section" />
+<p class="lead text-white text-center">More coming soon!</p>
+{% endblock %}
