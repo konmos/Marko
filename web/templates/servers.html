@@ -9,9 +9,14 @@
 {% endblock %}
 
 {% block content %}
+<div class="text-center section">
+  <img src="{{ url_for('static', filename='images/servers.png') }}" class="img-fluid">
+</div>
+<p class="lead text-white text-center">These are your servers... well... some of them...</p><hr class="half-section" />
+
 <div class="d-flex align-items-center p-3 my-3 text-white-50 bg-blurple rounded box-shadow">
     <div class="lh-100">
-        <h6 class="mb-0 text-white lh-100">These are your servers</h6>
+        <h6 class="mb-0 text-white lh-100">Servers you can manage</h6>
         <small>Just click the icon of the server you want to manage</small>
     </div>
 </div>

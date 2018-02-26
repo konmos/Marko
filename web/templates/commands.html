@@ -9,9 +9,10 @@
 {% endblock %}
 
 {% block content %}
-<h3 class="text-white">Plugins & Commands</h3><hr/>
-<p class="text-grey">The default command prefix for MarkoBot is <b>m!</b>. If you aren't sure about what to do, mention me in chat!</p>
-<br>
+<div class="text-center section">
+  <img src="{{ url_for('static', filename='images/commands.png') }}" class="img-fluid">
+</div>
+<p class="lead text-white text-center">The default command prefix for MarkoBot is <b>m!</b>. If you aren't sure about what to do, mention me in chat!</p><hr class="half-section" />
 
 <div class="nav nav-pills mb-3 justify-content-center" id="v-pills-tab" role="tablist">
   <a class="nav-link white-link active" id="nav-{{all_commands[0][0]}}-tab" data-toggle="pill" href="#nav-{{all_commands[0][0]}}" role="tab" aria-controls="nav-{{all_commands[0][0]}}" aria-selected="true">{{all_commands[0][0]}}</a>
