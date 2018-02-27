@@ -75,7 +75,11 @@
             <ul class="nav flex-column mb-2">
             {% for plugin in plugins -%}
               <li class="nav-item">
+                {%- if plugin in enabled_plugins -%}
                 <a class="nav-link" href="/dashboard/plugins/{{ plugin }}">
+                {% else %}
+                <a class="nav-link" data-toggle="modal" href="#{{plugin}}-modal">
+                {% endif %}
                   <span data-feather="file-text"></span>
                   {{ plugin }}
                   {%- if plugin in enabled_plugins -%}
@@ -114,6 +118,35 @@
           {% endblock %}
         </main>
       </div>
+
+      {% for plugin in plugins -%}
+        {%- if plugin not in enabled_plugins -%}
+          <div class="modal fade" id="{{plugin}}-modal" tabindex="-1" role="dialog" aria-labelledby="{{plugin}}-modal-label" aria-hidden="true">
+            <div class="modal-dialog" role="document">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h5 class="modal-title">Enable plugin?</h5>
+                  <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                  </button>
+                </div>
+
+                <div class="modal-body">
+                  This plugin is disabled. To manage it you must first enable it... Do you want to do that?
+                </div>
+
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                  <form action="/dashboard/enable_plugin/{{plugin}}" method="POST">
+                    <input name=_csrf_token type=hidden value="{{ csrf_token() }}">
+                    <button class="btn btn-primary">Enable</button>
+                  </form>
+                </div>
+              </div>
+            </div>
+          </div>
+        {% endif %}
+      {%- endfor %}
     </div>
     
     <!-- Bootstrap core JavaScript

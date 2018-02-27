@@ -94,6 +94,42 @@ def disable_commands(server_id, commands):
     return all(success)
 
 
+def mongo_enable_plugin(server_id, plugin):
+    rpc = get_rpc_client()
+
+    if plugin == 'Help' or plugin not in rpc.installed_plugins():
+        return
+
+    doc = db.bot_data.config.find_one(
+        {'server_id': server_id, 'plugins': {'$elemMatch': {'name': plugin}}}
+    )
+
+    if doc:
+        # Plugin is already enabled.
+        return False
+
+    ret = db.bot_data.config.update_one(
+        {'server_id': server_id},
+        {'$push': {'plugins': {'name': plugin, 'commands': []}}}
+    )
+
+    return bool(ret)
+
+
+def mongo_disable_plugin(server_id, plugin):
+    rpc = get_rpc_client()
+
+    if plugin == 'Help' or plugin not in rpc.installed_plugins():
+        return
+
+    ret = db.bot_data.config.update_one(
+        {'server_id': server_id},
+        {'$pull': {'plugins': {'name': plugin}}}
+    )
+
+    return bool(ret)
+
+
 def plugins_for_server(server_id):
     doc = db.bot_data.config.find_one({'server_id': server_id})
 
@@ -312,6 +348,10 @@ def index():
 @requires_server
 def get_plugin(plugin):
     rpc = get_rpc_client()
+
+    if plugin not in rpc.installed_plugins():
+        abort(403)
+
     enabled_plugins = plugins_for_server(session.get('active_server'))
     guilds = {g['id']: g['name'] for g in get_cached_user_guilds(session.get('user')['id'])}
 
@@ -360,6 +400,34 @@ def update_commands():
         flash('Oops! Something went wrong...')
 
     return redirect(f'/dashboard/plugins/{plugin}')
+
+
+@app.route('/dashboard/enable_plugin/<plugin>', methods=['POST'])
+@requires_auth
+@requires_server
+def enable_plugin(plugin):
+    ret = mongo_enable_plugin(session.get('active_server'), plugin)
+
+    if ret:
+        flash('OK! Configuration updated!')
+        return redirect(f'/dashboard/plugins/{plugin}')
+    else:
+        flash('Oops! Something went wrong...')
+        return redirect('/dashboard')
+
+
+@app.route('/dashboard/disable_plugin/<plugin>', methods=['POST'])
+@requires_auth
+@requires_server
+def disable_plugin(plugin):
+    ret = mongo_disable_plugin(session.get('active_server'), plugin)
+
+    if ret:
+        flash('OK! Configuration updated!')
+    else:
+        flash('Oops! Something went wrong...')
+
+    return redirect('/dashboard')
 
 
 if __name__ == '__main__':
