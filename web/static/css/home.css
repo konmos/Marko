@@ -140,3 +140,30 @@ body {
 .text-not-white { color: #EEEEEE; }
 .section { margin-bottom: 80px; }
 .half-section { margin-bottom: 40px; }
+
+.nav-item {
+  margin-left: 1rem;
+}
+
+.dropdown-toggle {
+  background-color: transparent;
+  border-color: #fff;
+  border-style: solid;
+  border-top: none;
+  border-right: none;
+  border-left: none;
+}
+
+.dropdown-menu {
+  background-color: #7289DA;
+}
+
+.dropdown-menu > a {
+  color: #fff;
+}
+
+.dropdown-menu > a:hover,
+.dropdown-menu > a:focus {
+  background-color: #6d78a4;
+  color: #fff;
+}
