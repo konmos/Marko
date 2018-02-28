@@ -18,6 +18,7 @@ class Mongo(object):
         self.config = self.bot_data.config
         self.cmd_history = self.bot_data.cmd_history
         self.stats = self.bot_data.stats
+        self.bot_guilds = self.bot_data.bot_guilds
 
         self.plugin_data = self.client.plugin_data
 

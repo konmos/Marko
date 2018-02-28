@@ -172,6 +172,27 @@ class mBot(discord.Client):
 
             await self.mongo.config.insert_one(cfg)
 
+    async def _update_bot_guilds(self, guilds=None):
+        if guilds is not None:
+            for guild in guilds:
+                await self.mongo.bot_guilds.update_one(
+                    {'server_id': guild.id},
+                    {'$set': {
+                        'name': guild.name,
+                        'owner': guild.owner.id,
+                        'icon': guild.icon,
+                        'channels': [
+                            {'id': channel.id, 'name': channel.name} for channel in guild.channels
+                        ]
+                    }},
+                    upsert=True
+                )
+
+    async def _delete_bot_guild(self, server_id):
+        await self.mongo.bot_guilds.delete_one(
+            {'server_id': server_id}
+        )
+
     async def on_ready(self):
         '''Called when the client is done preparing the data received from Discord.'''
         log.debug(f'{sys._getframe().f_code.co_name} event triggered')
@@ -179,6 +200,8 @@ class mBot(discord.Client):
         # Check if server settings exist and create them if not.
         for server in self.servers:
             await self._create_config(server.id)
+
+        await self._update_bot_guilds(self.servers)
 
         # Update global statistics
         await self.mongo.stats.update_one(
@@ -361,14 +384,17 @@ class mBot(discord.Client):
     async def on_channel_delete(self, channel):
         '''Called whenever a channel is removed from a server.'''
         log.debug(f'{sys._getframe().f_code.co_name} event triggered')
+        await self._update_bot_guilds(guilds=[channel.server])
+
         plugins = await self.plugin_manager.plugins_for_server(channel.server.id)
 
-        for plugin in  plugins:
+        for plugin in plugins.values():
             self.loop.create_task(plugin.on_channel_delete(channel))
 
     async def on_channel_create(self, channel):
         '''Called whenever a channel is added to a server.'''
         log.debug(f'{sys._getframe().f_code.co_name} event triggered')
+        await self._update_bot_guilds(guilds=[channel.server])
 
         try:
             plugins = await self.plugin_manager.plugins_for_server(channel.server.id)
@@ -381,6 +407,7 @@ class mBot(discord.Client):
     async def on_channel_update(self, before, after):
         '''Called whenever a channel is updated.'''
         log.debug(f'{sys._getframe().f_code.co_name} event triggered')
+        await self._update_bot_guilds(guilds=[after.server])
 
         try:
             plugins = await self.plugin_manager.plugins_for_server(before.server.id)
@@ -434,6 +461,8 @@ class mBot(discord.Client):
     async def on_server_remove(self, server):
         '''Called when a server is removed from the client.'''
         log.debug(f'{sys._getframe().f_code.co_name} event triggered')
+        await self._delete_bot_guild(server)
+
         plugins = await self.plugin_manager.plugins_for_server(server.id)
 
         for plugin in plugins.values():
@@ -442,6 +471,8 @@ class mBot(discord.Client):
     async def on_server_update(self, before, after):
         '''Called when a server updates.'''
         log.debug(f'{sys._getframe().f_code.co_name} event triggered')
+        await self._update_bot_guilds(guilds=[after])
+
         plugins = await self.plugin_manager.plugins_for_server(before.id)
 
         for plugin in plugins.values():
