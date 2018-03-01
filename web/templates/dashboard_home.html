@@ -1,6 +1,19 @@
 {% extends "dashboard.html" %}
 {% block content %}
+
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-2 mb-3 border-bottom">
-    <h1 class="h2">Dashboard</h1>
+  <h1 class="h2">Dashboard</h1>
 </div>
+
+<form role="form" action="/dashboard/update_config" method="POST">
+  <input name=_csrf_token type=hidden value="{{ csrf_token() }}">
+
+  <p class="lead">General</p><hr/>
+  <div class="form-group">
+    <label for="prefix">Server Prefix</label>
+    <input id="prefix" type="text" class="form-control" aria-describedby="prefix" name="prefix" placeholder="{{server_config['prefix']}}" >
+    <small class="form-text text-muted">This is the server-wide prefix that will be used for commands.</small>
+  </div>
+</form>
+
 {% endblock %}

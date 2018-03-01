@@ -94,6 +94,14 @@ def disable_commands(server_id, commands):
     return all(success)
 
 
+def get_server_config(server_id):
+    return db.bot_data.config.find_one({'server_id': server_id})
+
+
+def get_guild_data(guild_id):
+    return db.bot_data.bot_guilds.find_one({'server_id': guild_id})
+
+
 def mongo_enable_plugin(server_id, plugin):
     rpc = get_rpc_client()
 
@@ -339,7 +347,8 @@ def index():
         'dashboard_home.html',
         plugins=plugins,
         enabled_plugins=enabled_plugins,
-        server_name=guilds.get(session.get('active_server'), session.get('active_server'))
+        server_name=guilds.get(session.get('active_server'), session.get('active_server')),
+        server_config=get_server_config(session.get('active_server'))
     )
 
 
