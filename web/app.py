@@ -4,7 +4,7 @@ import zerorpc
 from functools import wraps
 from pymongo import MongoClient
 from requests_oauthlib import OAuth2Session
-from flask import Flask, render_template, session, redirect, request, flash, abort
+from flask import Flask, render_template, session, redirect, request, flash, abort, jsonify
 
 # CONFIG
 RPC_HOST = os.environ.get('RPC_HOST', 'tcp://127.0.0.1:4243')
@@ -188,18 +188,22 @@ def make_session(token=None, state=None, scope=None):
 @app.before_request
 def csrf_protect():
     if request.method == 'POST':
-        token = session.pop('_csrf_token', None)
-        if not token or token != request.form.get('_csrf_token'):
+        token = session.get('_csrf_token', None)
+        if not token or token not in (request.form.get('_csrf_token'), request.headers.get('X-Csrftoken')):
             abort(403)
 
 
 def generate_csrf_token():
-    if '_csrf_token' not in session:
-        session['_csrf_token'] = os.urandom(8).hex()
-
+    session['_csrf_token'] = os.urandom(8).hex()
     return session['_csrf_token']
 
-app.jinja_env.globals['csrf_token'] = generate_csrf_token
+
+def csrf_token():
+    return session['_csrf_token']
+
+
+app.jinja_env.globals['generate_csrf_token'] = generate_csrf_token
+app.jinja_env.globals['csrf_token'] = csrf_token
 
 
 # DASHBOARD
@@ -378,37 +382,38 @@ def get_plugin(plugin):
         )
 
 
-@app.route('/dashboard/update_commands', methods=['POST'])
+@app.route('/dashboard/disable_command/<command>', methods=['POST'])
 @requires_auth
 @requires_server
-def update_commands():
+def disable_command(command):
     rpc = get_rpc_client()
 
-    data = dict(request.form)
-    plugin = data['_plugin'][0]
-
+    plugin = rpc.plugin_for_command(command)
     commands = rpc.commands_for_plugin(plugin)
     enabled_commands = plugins_for_server(session.get('active_server')).get(plugin, [])
 
-    to_disable, to_enable = [], []
-
-    for cmd in commands:
-        if cmd in enabled_commands and cmd not in data:
-            # command was disabled
-            to_disable.append(cmd)
-        elif cmd in data and cmd not in enabled_commands:
-            # command was enabled
-            to_enable.append(cmd)
-
-    enabled = enable_commands(session.get('active_server'), to_enable)
-    disabled = disable_commands(session.get('active_server'), to_disable)
-
-    if enabled and disabled:
-        flash('OK! Configuration updated!')
+    if command in commands and command in enabled_commands:
+        disable_commands(session.get('active_server'), [command])
+        return jsonify(status='ok')
     else:
-        flash('Oops! Something went wrong...')
+        return jsonify(status='error')
 
-    return redirect(f'/dashboard/plugins/{plugin}')
+
+@app.route('/dashboard/enable_command/<command>', methods=['POST'])
+@requires_auth
+@requires_server
+def enable_command(command):
+    rpc = get_rpc_client()
+
+    plugin = rpc.plugin_for_command(command)
+    commands = rpc.commands_for_plugin(plugin)
+    enabled_commands = plugins_for_server(session.get('active_server')).get(plugin, [])
+
+    if command in commands and command not in enabled_commands:
+        enable_commands(session.get('active_server'), [command])
+        return jsonify(status='ok')
+    else:
+        return jsonify(status='error')
 
 
 @app.route('/dashboard/enable_plugin/<plugin>', methods=['POST'])
