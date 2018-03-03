@@ -1,11 +1,11 @@
 {% extends "dashboard.html" %}
-{% block content %}
 
+{% block content %}
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-2 mb-3 border-bottom">
   <h1 class="h2">Dashboard</h1>
 </div>
 
-<form role="form" action="/dashboard/update_config" method="POST">
+<form role="form" action="/dashboard/update_config" method="POST" autocomplete="off">
   <input name=_csrf_token type=hidden value="{{ csrf_token() }}">
 
   <p class="lead">General</p><hr/>
@@ -15,5 +15,4 @@
     <small class="form-text text-muted">This is the server-wide prefix that will be used for commands.</small>
   </div>
 </form>
-
 {% endblock %}
