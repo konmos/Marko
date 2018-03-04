@@ -337,14 +337,19 @@ def servers():
 @app.route('/dashboard/server/<server>')
 @requires_auth
 def set_server(server):
-    perms = [2146958591, 8]
-    guilds = [g['id'] for g in get_user_guilds() if g.get('owner', False) or g.get('permissions, 0') in perms]
+    guild = get_guild_data(server)
 
-    if server in guilds:
-        session['active_server'] = server
-        return redirect('/dashboard')
+    if guild:
+        perms = [2146958591, 8]
+        guilds = [g['id'] for g in get_user_guilds() if g.get('owner', False) or g.get('permissions, 0') in perms]
 
-    return redirect('/dashboard/servers')
+        if server in guilds:
+            session['active_server'] = server
+            return redirect('/dashboard')
+
+        return redirect('/dashboard/servers')
+    else:
+        return render_template('invite.html')
 
 
 @app.route('/dashboard')
