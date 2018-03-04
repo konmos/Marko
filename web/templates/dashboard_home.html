@@ -8,11 +8,11 @@
 <form role="form" action="/dashboard/update_config" method="POST" autocomplete="off">
   <input name=_csrf_token type=hidden value="{{ csrf_token() }}">
 
-  <p class="lead">General</p><hr/>
   <div class="form-group">
     <label for="prefix">Server Prefix</label>
     <input id="prefix" type="text" class="form-control" aria-describedby="prefix" name="prefix" placeholder="{{server_config['prefix']}}" >
     <small class="form-text text-muted">This is the server-wide prefix that will be used for commands.</small>
   </div>
+  <br><button type="submit" class="btn btn-primary">Save</button><br>
 </form>
 {% endblock %}

@@ -102,6 +102,15 @@ def get_guild_data(guild_id):
     return db.bot_data.bot_guilds.find_one({'server_id': guild_id})
 
 
+def set_prefix(server_id, prefix):
+    ret = db.bot_data.config.update_one(
+        {'server_id': server_id},
+        {'$set': {'prefix': prefix}}
+    )
+
+    return bool(ret)
+
+
 def mongo_enable_plugin(server_id, plugin):
     rpc = get_rpc_client()
 
@@ -352,7 +361,8 @@ def index():
         plugins=plugins,
         enabled_plugins=enabled_plugins,
         server_name=guilds.get(session.get('active_server'), session.get('active_server')),
-        server_config=get_server_config(session.get('active_server'))
+        server_config=get_server_config(session.get('active_server')),
+        guild_data=get_guild_data(session.get('active_server'))
     )
 
 
@@ -435,6 +445,25 @@ def enable_plugin(plugin):
 @requires_server
 def disable_plugin(plugin):
     ret = mongo_disable_plugin(session.get('active_server'), plugin)
+
+    if ret:
+        flash('OK! Configuration updated!')
+    else:
+        flash('Oops! Something went wrong...')
+
+    return redirect('/dashboard')
+
+
+@app.route('/dashboard/update_config', methods=['POST'])
+@requires_auth
+@requires_server
+def update_config():
+    data = dict(request.form)
+
+    if data.get('prefix')[0]:
+        ret = set_prefix(session.get('active_server'), data.get('prefix')[0])
+    else:
+        ret = False
 
     if ret:
         flash('OK! Configuration updated!')
