@@ -182,7 +182,11 @@ class mBot(discord.Client):
                         'owner': guild.owner.id,
                         'icon': guild.icon,
                         'channels': [
-                            {'id': channel.id, 'name': channel.name} for channel in guild.channels
+                            {
+                                'id': channel.id,
+                                'name': channel.name,
+                                'type': str(channel.type)
+                            } for channel in guild.channels
                         ]
                     }},
                     upsert=True
