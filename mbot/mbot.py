@@ -167,7 +167,8 @@ class mBot(discord.Client):
                 # this is when an admin runs either the `ignore` or `unignore` command. In this case
                 # the event is still triggered and the command goes through - this is done for convenience.
                 # All other events still trigger normally.
-                'ignored_channels': []
+                'ignored_channels': [],
+                'nsfw_channels': []  # Some commands may be nsfw and can only be run in nsfw channels.
             }
 
             await self.mongo.config.insert_one(cfg)

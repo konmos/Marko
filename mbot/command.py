@@ -10,7 +10,7 @@ log = logging.getLogger(__name__)
 
 
 def command(*, regex='', usage='', description='', name='', call_on_message=False,
-            su=False, perms=None, cooldown=None, aliases=None):
+            su=False, perms=None, cooldown=None, aliases=None, nsfw=False):
     '''
     Utility function to make creating commands easier. Takes care of common tasks such as
     pattern matching, permissions, roles, usages, etc... When a message matches the `regex`,
@@ -73,6 +73,13 @@ def command(*, regex='', usage='', description='', name='', call_on_message=Fals
                         f'**Whoah! You\'re doing that too often {message.author.mention}...**'
                     )
                     return
+
+            # Check NSFW status
+            config = await self.mbot.mongo.config.find_one({'server_id': message.server.id})
+
+            if nsfw and message.channel.id not in config['nsfw_channels']:
+                await self.mbot.send_message(message.channel, '*You cannot use NSFW commands here...*')
+                return
 
             # Check if the user has necessary permissions.
             if perms is not None:

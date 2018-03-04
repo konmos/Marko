@@ -20,6 +20,60 @@ class ConfigPlugin(BasePlugin):
         ret = await self.mbot.mongo.config.find_one({'server_id': server_id})['prefix']
         return ret
 
+    async def _set_nsfw(self, server_id, channel_id):
+        doc = await self.mbot.mongo.config.find_one({'server_id': server_id})
+
+        # Already NSFW.
+        if channel_id in doc['nsfw_channels']:
+            return False
+
+        ret = await self.mbot.mongo.config.update_one(
+            {'server_id': server_id},
+            {'$push': {'nsfw_channels': channel_id}}
+        )
+
+        return bool(ret)
+
+    async def _set_sfw(self, server_id, channel_id):
+        doc = await self.mbot.mongo.config.find_one({'server_id': server_id})
+
+        # Already SFW.
+        if channel_id not in doc['nsfw_channels']:
+            return False
+
+        ret = await self.mbot.mongo.config.update_one(
+            {'server_id': server_id},
+            {'$pull': {'nsfw_channels': channel_id}}
+        )
+
+        return bool(ret)
+
+    @command(description='set this channel to nsfw', usage='nsfw')
+    async def nsfw(self, message):
+        ret = await self._set_nsfw(message.server.id, message.channel.id)
+
+        if ret:
+            await self.mbot.send_message(
+                message.channel, f':ok_hand: **`#{message.channel.name}` is now set to NSFW!**', force=True
+            )
+        else:
+            await self.mbot.send_message(
+                message.channel, ':cry: **Channel appears to already be NSFW**', force=True
+            )
+
+    @command(description='set this channel to sfw', usage='sfw')
+    async def sfw(self, message):
+        ret = await self._set_sfw(message.server.id, message.channel.id)
+
+        if ret:
+            await self.mbot.send_message(
+                message.channel, f':ok_hand: **`#{message.channel.name}` is no longer NSFW!**', force=True
+            )
+        else:
+            await self.mbot.send_message(
+                message.channel, ':cry: **Channel appears to already be SFW!**', force=True
+            )
+
     @command(regex='^prefix (.*?)$', usage='prefix <prefix>', description='set the bot prefix for this server',
              name='prefix', perms=0x8)
     async def set_prefix(self, message, prefix):
