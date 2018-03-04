@@ -252,7 +252,7 @@ class mBot(discord.Client):
 
         # If we get mentioned, reply with a default help command.
         if re.match(f'^<@{self.user.id}>.*?$', message.content):
-            prefix = cfg["prefix"]
+            prefix = cfg['prefix']
 
             await self.send_message(
                 message.channel,
@@ -268,7 +268,7 @@ class mBot(discord.Client):
         if message.channel.id in cfg['ignored_channels']:
             # ...Unless the user is an admin and runs either the `ignore` or `unignore` command.
             if message.author.permissions_in(message.channel).administrator:
-                pattern = f'^(?:{re.escape(cfg["prefix"])}|{re.escape("!!?")})(?:ignore|unignore)$'
+                pattern = f'^(?:{re.escape(cfg["prefix"])})(?:ignore|unignore)$'
 
                 if not re.match(pattern, message.content):
                     return
@@ -276,31 +276,11 @@ class mBot(discord.Client):
                 return
 
         cmd, matched_cmd = False, None
-        # An admin cmd is one that starts with `!!?`
-        # it allows the admin user to bypass server configurations for the prefix,
-        # and for enabled / disabled plugins.
-        admin_cmd = False
 
         if message.content.startswith(cfg['prefix']):
             message.content, cmd = message.content[len(cfg['prefix']):], True
-        elif message.author.permissions_in(message.channel).administrator and message.content.startswith('!!?'):
-            # Anything prefixed with the hardcoded prefix `!!?` will be treated as a command,
-            # but only if the user is an admin. This is here just in case the users mess something up, ie.
-            # forgetting the prefix, or disabling some key plugins.
-            await self.send_message(
-                message.channel,
-                f'{message.author.mention} *Has disaster struck?\nAnything prefixed with `!!?` will be treated '
-                'as a command.\nIn this mode, you can run commands even if they are disabled on the server.\n'
-                'Use this in case of emergencies such as forgetting the prefix or disabling key plugins.*',
-                force=True
-            )
 
-            message.content, cmd, admin_cmd = message.content[3:], True, True
-
-        if admin_cmd:
-            commands = dict([(cmd, self.plugin_manager.commands[cmd][-1]) for cmd in self.plugin_manager.commands])
-        else:
-            commands = await self.plugin_manager.commands_for_server(message.server.id)
+        commands = await self.plugin_manager.commands_for_server(message.server.id)
 
         if cmd:
             for command in commands.values():
