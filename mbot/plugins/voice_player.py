@@ -1,3 +1,4 @@
+import time
 import random
 import logging
 import asyncio
@@ -49,6 +50,7 @@ class VoicePlayer(BasePlugin):
             info['title'] = title
             info['description'] = description
 
+        info['url'] = url
         return info
 
     async def _create_playlist(self, server_id):
@@ -73,12 +75,20 @@ class VoicePlayer(BasePlugin):
         await self.ensure_playlist_exists(server_id)
         return await self.player_db.find_one({'server_id': server_id})
 
-    async def add_to_playlist(self, server_id, media_id, url, title):
+    async def add_to_playlist(self, server_id, user, media_info):
         await self.ensure_playlist_exists(server_id)
 
         ret = await self.player_db.update_one(
             {'server_id': server_id},
-            {'$push': {'playlist': {'media_id': media_id, 'url': url, 'title': title}}}
+            {'$push': {'playlist': {
+                'id': media_info['id'],
+                'title': media_info['title'],
+                'url': media_info['url'],
+                'duration': media_info.get('duration'),
+                'is_live': media_info.get('is_live') or False,
+                'user': user,
+                'timestamp': time.time()
+            }}}
         )
 
         return bool(ret)
@@ -88,7 +98,7 @@ class VoicePlayer(BasePlugin):
 
         ret = await self.player_db.update_one(
             {'server_id': server_id},
-            {'$pull': {'playlist': {'media_id': media_id}}}
+            {'$pull': {'playlist': {'id': media_id}}}
         )
 
         return bool(ret)
@@ -113,19 +123,40 @@ class VoicePlayer(BasePlugin):
 
         return bool(ret)
 
-    async def set_playing(self, server_id, media_id=None, title=None, url=None):
+    async def set_unshuffle(self, server_id):
         await self.ensure_playlist_exists(server_id)
 
-        if media_id is not None:
+        ret = await self.player_db.update_one(
+            {'server_id': server_id},
+            {'$set': {'shuffle': False}}
+        )
+
+        return bool(ret)
+
+    async def set_playing(self, server_id, user, media_info):
+        await self.ensure_playlist_exists(server_id)
+
+        if media_info.get('id') is not None:
             ret = await self.player_db.update_one(
                 {'server_id': server_id},
-                {'$set': {'now_playing': {'media_id': media_id, 'title': title, 'url': url}}}
+                {'$set': {'now_playing': {
+                    'id': media_info['id'],
+                    'title': media_info['title'],
+                    'url': media_info['url'],
+                    'duration': media_info.get('duration'),
+                    'is_live': media_info.get('is_live') or False,
+                    'user': user,
+                    'timestamp': time.time()
+                }}}
             )
-        else:
-            ret = await self.player_db.update_one(
-                {'server_id': server_id},
-                {'$set': {'now_playing': None}}
-            )
+
+            return bool(ret)
+
+    async def reset_playing(self, server_id):
+        ret = await self.player_db.update_one(
+            {'server_id': server_id},
+            {'$set': {'now_playing': None}}
+        )
 
         return bool(ret)
 
@@ -174,11 +205,6 @@ class VoicePlayer(BasePlugin):
 
         if info is None:
             info = await self.get_url_info(url, _message=message)
-            media_id = info['id']
-        else:
-            media_id = info['media_id']
-
-        title = info['title']
 
         playlist = await self.get_playlist(message.server.id)
 
@@ -186,8 +212,7 @@ class VoicePlayer(BasePlugin):
         self.players[message.server.id].player.volume = playlist['volume']
         self.players[message.server.id].player.start()
 
-        await self.set_playing(message.server.id, media_id, title, url)
-
+        await self.set_playing(message.server.id, f'{message.author.name}#{message.author.discriminator}', info)
         return info
 
     @command(regex='^join(?: (.*?))?$', description='join a voice channel', usage='join [channel]')
@@ -205,7 +230,7 @@ class VoicePlayer(BasePlugin):
         if not connected:
             await self.mbot.send_message(message.channel, '*I could not connect to any voice channels...*')
 
-        info = await self.play_url(message, url, channel_name)
+        info = await self.play_url(message, url)
         await self.mbot.send_message(message.channel, f':notes: | Playing | **{info["title"]}**')
 
     @command(regex='^stop$', description='stop the player', usage='stop')
@@ -218,7 +243,7 @@ class VoicePlayer(BasePlugin):
             self.players[message.server.id].q_loop.cancel()
 
         await message.server.voice_client.disconnect()
-        await self.set_playing(message.server.id)
+        await self.reset_playing(message.server.id)
 
     @command(regex='^volume (\d+\.\d+)$', description='adjust the volume of the player', usage='volume <%>')
     async def volume(self, message, vol):
@@ -231,7 +256,7 @@ class VoicePlayer(BasePlugin):
              usage='queue add <url>')
     async def queue_add(self, message, url):
         info = await self.get_url_info(url, _message=message)
-        await self.add_to_playlist(message.server.id, info['id'], url, info['title'])
+        await self.add_to_playlist(message.server.id, f'{message.author.name}#{message.author.discriminator}', info)
         await self.mbot.send_message(message.channel, f':notes: | Scheduled | **{info["title"]}**')
 
     @command(regex='^queue list$', name='queue list', description='list the current stream queue', usage='queue list')
@@ -258,9 +283,9 @@ class VoicePlayer(BasePlugin):
                     item = playlist['playlist'][0]
 
                 await self.play_url(message, item['url'], info=item, after=self.players[server.id].done_playing.set)
-                await self.remove_from_playlist(server.id, item['media_id'])
+                await self.remove_from_playlist(server.id, item['id'])
             else:
-                return
+                return await self.reset_playing(message.server.id)
 
             self.players[server.id].done_playing.clear()
             await asyncio.sleep(5)
