@@ -50,13 +50,15 @@ class Moderator(BasePlugin):
 
         if not doc:
             ret = await self._create_blacklist(server_id, [string])
+            return bool(ret)
         else:
-            ret = await self.blacklist_db.update_one(
-                {'server_id': server_id},
-                {'$push': {'blacklist': string}}
-            )
+            if string not in doc['blacklist']:
+                ret = await self.blacklist_db.update_one(
+                    {'server_id': server_id},
+                    {'$push': {'blacklist': string}}
+                )
 
-        return bool(ret)
+                return bool(ret)
 
     async def remove_from_blacklist(self, server_id, string):
         doc = await self.blacklist_db.find_one({'server_id': server_id})
