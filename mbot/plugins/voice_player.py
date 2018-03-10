@@ -306,7 +306,7 @@ class VoicePlayer(BasePlugin):
 
             self.players[message.server.id].done_playing.set()
 
-    @command(description='set the playlist to shuffle mode', usage='shuffle')
+    @command(description='shuffle the playlist', usage='shuffle')
     async def shuffle(self, message):
         ret = await self.set_shuffle(message.server.id)
 
@@ -314,3 +314,12 @@ class VoicePlayer(BasePlugin):
             await self.mbot.send_message(message.channel, ':ok_hand: **Set playlist to shuffle!**')
         else:
             await self.mbot.send_message(message.channel, ':cry: **Could not set playlist to shuffle!**')
+
+    @command(description='unshuffle the playlist', usage='unshuffle')
+    async def unshuffle(self, message):
+        ret = await self.set_unshuffle(message.server.id)
+
+        if ret:
+            await self.mbot.send_message(message.channel, ':ok_hand: **Unshuffled playlist!**')
+        else:
+            await self.mbot.send_message(message.channel, ':cry: **Could not unshuffle playlist!**')
