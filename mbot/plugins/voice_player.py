@@ -3,6 +3,7 @@ import logging
 import asyncio
 from collections import defaultdict
 
+from discord import Channel
 from youtube_dl import YoutubeDL
 
 from ..plugin import BasePlugin
@@ -128,62 +129,84 @@ class VoicePlayer(BasePlugin):
 
         return bool(ret)
 
-    async def join_voice_channel(self, server, channel_name=None, channel_obj=None):
+    @staticmethod
+    def is_voice_connected(server):
+        return server.voice_client and server.voice_client.is_connected()
+
+    async def _join_voice_channel(self, server, channel):
+        '''
+        Join a voice channel in a server. This disconnects the client if it exists, and rejoins.
+        This should not be used to move channels.
+
+        :param server: A `Server` object
+        :param channel: Either a server object of a string representing the channel name.
+        :return: Return value of `is_voice_connected(server)`
+        '''
         await self.ensure_playlist_exists(server.id)
 
-        if server.voice_client and server.voice_client.is_connected():
-            if (channel_name == server.voice_client.channel.name) or (channel_obj == server.voice_client.channel):
+        if self.is_voice_connected(server):
+            if channel == server.voice_client.channel.name or channel == server.voice_client.channel:
+                # We're already in the correct channel.
                 return
             else:
+                # Disconnect first, if we want to rejoin to a different channel.
                 await server.voice_client.disconnect()
 
-        # Providing a `channel_obj` argument overrides the `channel_name` and joins the
-        # the channel to which the object points.
-        if channel_obj is not None:
-            await self.mbot.join_voice_channel(channel_obj)
-            return
+        if isinstance(channel, Channel):
+            await self.mbot.join_voice_channel(channel)
+        elif isinstance(channel, str):
+            for ch in server.channels:
+                if str(ch.type) == 'voice' and ch.name == channel:
+                    await self.mbot.join_voice_channel(ch)
+                    break
 
-        for channel in server.channels:
-            if (str(channel.type) == 'voice') and (channel.name == channel_name):
-                await self.mbot.join_voice_channel(channel)
-                break
-
-    async def play_url(self, message, url, channel_name=None, after=None):
+    async def join_voice_channel(self, message, channel_name):
         if channel_name is not None:
-            await self.join_voice_channel(message.server, channel_name=channel_name)
-        else:
-            if message.server.voice_client is None or not message.server.voice_client.is_connected():
-                if message.author.voice.voice_channel is not None:
-                    await self.join_voice_channel(message.server, channel_obj=message.author.voice.voice_channel)
-                else:
-                    await self.mbot.send_message(message.channel, '*I am not connected to any voice channels...*')
-                    return
+            await self._join_voice_channel(message.server, channel=channel_name)
+        elif message.author.voice.voice_channel is not None:
+            await self._join_voice_channel(message.server, channel=message.author.voice.voice_channel)
 
+        return self.is_voice_connected(message.server)
+
+    async def play_url(self, message, url, after=None, info=None):
         if self.players[message.server.id].player is not None:
             self.players[message.server.id].player.stop()
 
-        info = await self.get_url_info(url, _message=message)
-        playlist = await self.get_playlist(message.server.id)
+        if info is None:
+            info = await self.get_url_info(url, _message=message)
+            media_id = info['id']
+        else:
+            media_id = info['media_id']
 
-        await self.mbot.send_message(message.channel, f':notes: | Playing | **{info["title"]}**')
+        title = info['title']
+
+        playlist = await self.get_playlist(message.server.id)
 
         self.players[message.server.id].player = await message.server.voice_client.create_ytdl_player(url, after=after)
         self.players[message.server.id].player.volume = playlist['volume']
         self.players[message.server.id].player.start()
 
-        await self.set_playing(message.server.id, info['id'], info['title'], url)
+        await self.set_playing(message.server.id, media_id, title, url)
+
+        return info
 
     @command(regex='^join(?: (.*?))?$', description='join a voice channel', usage='join [channel]')
     async def join(self, message, channel_name=None):
-        if channel_name:
-            await self.join_voice_channel(message.server, channel_name=channel_name)
-        else:
-            await self.join_voice_channel(message.server, channel_obj=message.author.voice.voice_channel)
+        connected = await self.join_voice_channel(message, channel_name)
+
+        if not connected:
+            await self.mbot.send_message(message.channel, '*I could not connect to any voice channels...*')
 
     @command(regex='^play <?(.*?)>?(?: (.*?))?$', description='stream audio from a url',
              usage='play <url> [channel]', cooldown=5)
     async def play(self, message, url, channel_name=None):
-        await self.play_url(message, url, channel_name)
+        connected = await self.join_voice_channel(message, channel_name)
+
+        if not connected:
+            await self.mbot.send_message(message.channel, '*I could not connect to any voice channels...*')
+
+        info = await self.play_url(message, url, channel_name)
+        await self.mbot.send_message(message.channel, f':notes: | Playing | **{info["title"]}**')
 
     @command(regex='^stop$', description='stop the player', usage='stop')
     async def stop(self, message):
@@ -213,32 +236,31 @@ class VoicePlayer(BasePlugin):
 
     @command(regex='^queue list$', name='queue list', description='list the current stream queue', usage='queue list')
     async def queue_list(self, message):
-        print(self.players[message.server.id].playlist)
+        await self.ensure_playlist_exists(message.server.id)
+        await self.mbot.send_message(
+            message.channel,
+            f'**:View the playlist for this server at https://markobot.xyz/playlist/{message.server.id}**'
+        )
 
-    async def queue_loop(self, server):
+    async def queue_loop(self, message):
+        server = message.server
+
         await self.mbot.wait_until_ready()
 
         while not self.mbot.is_closed:
             await self.players[server.id].done_playing.wait()
             playlist = await self.get_playlist(server.id)
 
-            if playlist['playlist'] and server.voice_client.is_connected():
+            if playlist['playlist'] and self.is_voice_connected(message.server):
                 if playlist['shuffle']:
                     item = random.choice(playlist['playlist'])
                 else:
                     item = playlist['playlist'][0]
 
+                await self.play_url(message, item['url'], info=item, after=self.players[server.id].done_playing.set)
                 await self.remove_from_playlist(server.id, item['media_id'])
-
-                self.players[server.id].player = \
-                    await server.voice_client.create_ytdl_player(
-                        item['url'], after=self.players[server.id].done_playing.set
-                    )
-
-                self.players[server.id].player.volume = playlist['volume']
-                self.players[server.id].player.start()
-
-                await self.set_playing(server.id, item['media_id'], item['title'], item['url'])
+            else:
+                return
 
             self.players[server.id].done_playing.clear()
             await asyncio.sleep(5)
@@ -246,17 +268,16 @@ class VoicePlayer(BasePlugin):
     @command(regex='^queue start(?: (.*?))?$', name='queue start', description='start the queue',
              usage='queue start [channel]', cooldown=5)
     async def queue_play(self, message, channel_name=None):
-        if message.server.voice_client is None or not message.server.voice_client.is_connected():
-            await self.join_voice_channel(message.server, channel_name)
+        connected = await self.join_voice_channel(message, channel_name)
+
+        if not connected:
+            return await self.mbot.send_message(message.channel, '*I could not connect to any voice channels...*')
 
         playlist = await self.get_playlist(message.server.id)
 
-        if playlist['playlist'] and message.server.voice_client is not None:
-            if self.players[message.server.id].player:
-                self.players[message.server.id].player.stop()
-
+        if playlist['playlist']:
             if not self.players[message.server.id].q_loop:
-                self.players[message.server.id].q_loop = self.mbot.loop.create_task(self.queue_loop(message.server))
+                self.players[message.server.id].q_loop = self.mbot.loop.create_task(self.queue_loop(message))
 
             self.players[message.server.id].done_playing.set()
 
