@@ -1,0 +1,40 @@
+{% extends "home.html" %}
+{% block title %}Marko - Playlist{% endblock %}
+
+{% block navbar %}
+<a class="nav-link" href="/"><span class="fas fa-home fa-sm"></span> Home</a>
+<a class="nav-link" href="/commands"><span class="fas fa-terminal fa-sm"></span> Commands</a>
+<a class="nav-link" href="/dashboard/servers"><span class="fas fa-server fa-sm"></span> Your Servers</a>
+<a class="nav-link" href="/dashboard"><span class="fas fa-cog fa-sm"></span> Dashboard</a>
+{% endblock %}
+
+{% block content %}
+<div class="text-center section">
+  <img src="{{ url_for('static', filename='images/queue.png') }}" class="img-fluid">
+</div>
+
+{% if playlist['now_playing'] %}
+<div class="d-flex align-items-center p-3 my-3 text-white-50 bg-blurple rounded box-shadow">
+    <div class="lh-100">
+      <h6 class="mb-0 text-white lh-100">Now Playing <strong><a target="_blank" style="text-decoration: inherit; color: inherit;" href="{{playlist['now_playing']['url']}}">{{playlist['now_playing']['title']}}</a></strong></h6>
+        <small>Added by {{playlist['now_playing']['user']}}</small>
+    </div>
+</div>
+{% endif %}
+
+{% if playlist['playlist'] %}
+<div class="my-3 p-3 bg-white rounded box-shadow">
+  <h6 class="border-bottom border-gray pb-2 mb-0">Queue</h6>
+  {% for song in playlist['playlist'] -%}
+  <div class="media text-muted pt-3 border-bottom border-gray">
+    <p class="media-body pb-3 mb-0 small lh-125">
+      <strong class="d-block text-gray-dark"><a target="_blank" style="text-decoration: inherit; color: inherit;" href="{{song['url']}}">{{ song['title'] }}</a></strong>
+      Added by {{song['user']}}
+    </p>
+  </div>
+  {%- endfor %}
+</div>
+{% else %}
+<p class="lead text-white text-center half-section">The queue seems empty... Add some songs with <strong>m!queue add</strong></p>
+{% endif %}
+{% endblock %}

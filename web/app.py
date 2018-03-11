@@ -36,6 +36,10 @@ def get_rpc_client():
 
 
 # MONGO
+def get_playlist(server_id):
+    return db.plugin_data.voice_player.find_one({'server_id': server_id})
+
+
 def enable_commands(server_id, commands):
     success, rpc = [], get_rpc_client()
 
@@ -235,6 +239,15 @@ def commands():
 
     return render_template('commands.html', all_commands=all_commands)
 
+
+@app.route('/playlist/<server>')
+def playlist(server):
+    pl = get_playlist(server)
+
+    if not pl:
+        abort(404)
+
+    return render_template('playlist.html', playlist=pl)
 
 @app.route('/dashboard/login')
 def login():
