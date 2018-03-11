@@ -169,6 +169,19 @@ class VoicePlayer(BasePlugin):
     def is_voice_connected(server):
         return server.voice_client and server.voice_client.is_connected()
 
+    def kill_queue(self, server):
+        if self.players[server].q_loop is not None:
+            try:
+                self.players[server].q_loop.cancel()
+            except:
+                pass
+
+            self.players[server].done_playing.set()
+
+    def stop_player(self, server):
+        if self.players[server].player is not None:
+            self.players[server].player.stop()
+
     async def _join_voice_channel(self, server, channel):
         '''
         Join a voice channel in a server. This disconnects the client if it exists, and rejoins.
@@ -204,9 +217,11 @@ class VoicePlayer(BasePlugin):
 
         return self.is_voice_connected(message.server)
 
-    async def play_url(self, message, url, after=None, info=None):
-        if self.players[message.server.id].player is not None:
-            self.players[message.server.id].player.stop()
+    async def play_url(self, message, url, after=None, info=None, kill_q=True):
+        self.stop_player(message.server.id)
+
+        if kill_q:
+            self.kill_queue(message.server.id)
 
         if info is None:
             info = await self.get_url_info(url, _message=message)
@@ -228,7 +243,7 @@ class VoicePlayer(BasePlugin):
             await self.mbot.send_message(message.channel, '*I could not connect to any voice channels...*')
 
     @command(regex='^play <?(.*?)>?(?: (.*?))?$', description='stream audio from a url',
-             usage='play <url> [channel]', cooldown=5)
+             usage='play <url> [channel]', cooldown=10)
     async def play(self, message, url, channel_name=None):
         connected = await self.join_voice_channel(message, channel_name)
 
@@ -240,12 +255,9 @@ class VoicePlayer(BasePlugin):
 
     @command(regex='^stop$', description='stop the player', usage='stop')
     async def stop(self, message):
-        if self.players[message.server.id].player is not None:
-            self.players[message.server.id].player.stop()
-            del self.players[message.server.id]
-
-        if self.players[message.server.id].q_loop is not None:
-            self.players[message.server.id].q_loop.cancel()
+        self.stop_player(message.server.id)
+        self.kill_queue(message.server.id)
+        del self.players[message.server.id]
 
         await message.server.voice_client.disconnect()
         await self.reset_playing(message.server.id)
@@ -287,7 +299,9 @@ class VoicePlayer(BasePlugin):
                 else:
                     item = playlist['playlist'][0]
 
-                await self.play_url(message, item['url'], info=item, after=self.players[server.id].done_playing.set)
+                await self.play_url(
+                    message, item['url'], info=item, after=self.players[server.id].done_playing.set, kill_q=False
+                )
                 await self.remove_from_playlist(server.id, item['id'])
             else:
                 return await self.reset_playing(message.server.id)
@@ -296,7 +310,7 @@ class VoicePlayer(BasePlugin):
             await asyncio.sleep(5)
 
     @command(regex='^queue start(?: (.*?))?$', name='queue start', description='start the queue',
-             usage='queue start [channel]', cooldown=5)
+             usage='queue start [channel]', cooldown=10)
     async def queue_play(self, message, channel_name=None):
         connected = await self.join_voice_channel(message, channel_name)
 
@@ -306,10 +320,9 @@ class VoicePlayer(BasePlugin):
         playlist = await self.get_playlist(message.server.id)
 
         if playlist['playlist']:
-            if not self.players[message.server.id].q_loop:
-                self.players[message.server.id].q_loop = self.mbot.loop.create_task(self.queue_loop(message))
-
-            self.players[message.server.id].done_playing.set()
+            self.stop_player(message.server.id)
+            self.kill_queue(message.server.id)
+            self.players[message.server.id].q_loop = self.mbot.loop.create_task(self.queue_loop(message))
 
     @command(description='shuffle the playlist', usage='shuffle')
     async def shuffle(self, message):
@@ -357,11 +370,8 @@ class VoicePlayer(BasePlugin):
         # the number of users in the voice channel.
         if votes >= math.ceil(num_users * 0.6):
             await self.mbot.send_message(message.channel, ':ok_hand: **Skipping song.**')
+            self.stop_player(message.server.id)
             await self.reset_playing(message.server.id)
-
-            if self.players[message.server.id].player is not None:
-                self.players[message.server.id].player.stop()
-
             self.players[message.server.id].done_playing.set()
         else:
             diff = math.ceil(num_users * 0.6) - votes
