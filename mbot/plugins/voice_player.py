@@ -1,4 +1,5 @@
 import time
+import math
 import random
 import logging
 import asyncio
@@ -146,7 +147,11 @@ class VoicePlayer(BasePlugin):
                     'duration': media_info.get('duration'),
                     'is_live': media_info.get('is_live') or False,
                     'user': user,
-                    'timestamp': time.time()
+                    'timestamp': time.time(),
+                    'skip_votes': {
+                        'num_votes': 0,
+                        'users': []
+                    }
                 }}}
             )
 
@@ -323,3 +328,44 @@ class VoicePlayer(BasePlugin):
             await self.mbot.send_message(message.channel, ':ok_hand: **Unshuffled playlist!**')
         else:
             await self.mbot.send_message(message.channel, ':cry: **Could not unshuffle playlist!**')
+
+    @command(description='vote to skip the current song', usage='skip', name='skip')
+    async def skip_song(self, message):
+        playlist = await self.get_playlist(message.server.id)
+
+        if not self.is_voice_connected(message.server) or playlist['now_playing'] is None:
+            return await self.mbot.send_message(message.channel, ':cry: **Nothing seems to be playing...**')
+
+        if message.author.id in playlist['now_playing']['skip_votes']['users']:
+            return await self.mbot.send_message(message.channel, '**You\'ve already voted!**')
+
+        num_users = len(message.server.voice_client.channel.voice_members)
+
+        await self.player_db.update_one(
+            {'server_id': message.server.id},
+            {'$inc': {'now_playing.skip_votes.num_votes': 1}}
+        )
+
+        await self.player_db.update_one(
+            {'server_id': message.server.id},
+            {'$push': {'now_playing.skip_votes.users': message.author.id}}
+        )
+
+        votes = playlist['now_playing']['skip_votes']['num_votes'] + 2  # We add 2 because we ignore the bot.
+
+        # To skip a song, the number of votes must be greater than the `ceil` of 60%
+        # the number of users in the voice channel.
+        if votes >= math.ceil(num_users * 0.6):
+            await self.mbot.send_message(message.channel, ':ok_hand: **Skipping song.**')
+            await self.reset_playing(message.server.id)
+
+            if self.players[message.server.id].player is not None:
+                self.players[message.server.id].player.stop()
+
+            self.players[message.server.id].done_playing.set()
+        else:
+            diff = math.ceil(num_users * 0.6) - votes
+            await self.mbot.send_message(
+                message.channel,
+                f':ok_hand: **Voted to skip... {diff} more votes needed to skip this song!**'
+            )
