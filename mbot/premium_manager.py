@@ -113,7 +113,7 @@ class PremiumGuild(object):
     def __init__(self, guild_id, key, key_id=0):
         self.key = key
         self.guild_id = guild_id
-        self.key_id = key_id
+        self.key_id = int(key_id)
 
     @property
     def upgraded_by(self):
@@ -137,7 +137,7 @@ class PremiumGuild(object):
     @property
     def guild_data(self):
         return {
-            'key': f'{self.key.key}#{self.key.key_id}',
+            'key': f'{self.key.key}#{self.key_id}',
             'server_id': self.guild_id,
             'expires': self.expires
         }
@@ -147,8 +147,8 @@ class PremiumManager(object):
     def __init__(self, mbot):
         self.mbot = mbot
 
-        self.keys_db = mbot.mongo.bot_data.premium_keys
-        self.guilds_db = mbot.mongo.bot_data.premium_guilds
+        self.keys_db = self.mbot.mongo.bot_data.premium_keys
+        self.guilds_db = self.mbot.mongo.bot_data.premium_guilds
 
     async def get_guild(self, server_id):
         doc = await self.guilds_db.find_one({'server_id': server_id})
@@ -180,9 +180,12 @@ class PremiumManager(object):
             key_id = key_obj.redeem_key(user_id, server_id)
             guild = PremiumGuild(server_id, key_obj, key_id)
 
+            data = key_obj.key_data
+            data.pop('key')
+
             await self.keys_db.update_one(
                 {'key': key},
-                {'$set': key.key_data.pop('key')},
+                {'$set': data},
                 upsert=True
             )
 
