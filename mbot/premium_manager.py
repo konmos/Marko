@@ -30,14 +30,14 @@ def calculate_expire_time(start_time, months):
 class Key(object):
     def __init__(self, **key_data):
         self.key = key_data.get('key', str(uuid.uuid4()))
-        self.ttl = key_data.get('ttl', 24*60*60*5)
+        self.ttl = int(key_data.get('ttl', 24*60*60*5))
         self.time_generated = key_data.get('time_generated', time.time())
         self.generated_by = key_data.get('generated_by')
         self.expires = key_data.get('expires')
         self.key_type = key_data.get('key_type', 'pro-1')
         self.authorised_users = key_data.get('authorised_users', [])
-        self.max_uses = key_data.get('max_uses', 1)
-        self.uses_remaining = key_data.get('uses_remaining', 1)
+        self.max_uses = int(key_data.get('max_uses', 1))
+        self.uses_remaining = int(key_data.get('uses_remaining', 1))
         self.key_note = key_data.get('key_note', '')
         self.usage = key_data.get('usage', [])
 
@@ -159,7 +159,7 @@ class PremiumManager(object):
 
             return PremiumGuild(server_id, Key(**key_data), key_id)
 
-    async def generate_key(self, user_id=None, max_uses=1, note=None, authorised_users=None, key_type=None):
+    async def generate_key(self, user_id=None, max_uses=1, note=None, authorised_users=None, key_type=None, ttl=None):
         app_info = await self.mbot.application_info()
 
         key = Key(
@@ -167,10 +167,12 @@ class PremiumManager(object):
             authorised_users=authorised_users or [],
             key_note=note or '',
             key_type=key_type or 'pro-1',
-            max_uses=max_uses
+            max_uses=max_uses,
+            ttl=ttl or 24*60*60*5
         )
 
         await self.keys_db.insert_one(key.key_data)
+        return key
 
     async def upgrade_guild(self, server_id, user_id, key):
         key_data = await self.keys_db.find_one({'key': key})
@@ -196,3 +198,11 @@ class PremiumManager(object):
             )
         else:
             raise InvalidKey
+
+    async def is_guild_premium(self, server_id):
+        guild = await self.get_guild(server_id)
+
+        if guild:
+            return not guild.expired
+
+        return False
