@@ -137,14 +137,6 @@ class ConfigPlugin(BasePlugin):
                 message.channel, ':cry: **Channel appears to not be ignored!**', force=True
             )
 
-    @command(su=True, description='reload all plugins and commands globally', usage='reload')
-    async def reload(self, message):
-        with await self.mbot.plugin_manager.lock:
-            await self.mbot.plugin_manager.reload_plugins()
-            await self.mbot.send_message(
-                message.channel, f':ok_hand: **Successfully reloaded all plugins!**'
-            )
-
     async def disable_plugin(self, message):
         m = await self.mbot.send_message(
             message.channel,

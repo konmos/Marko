@@ -14,7 +14,7 @@ CMD_HELP = (
 )
 
 
-class Help(BasePlugin):
+class Core(BasePlugin):
     @command(regex='^help(?: (.*?))?$', usage='help <command>', description='displays the help page')
     async def help(self, message, cmd=None):
         server_cfg = await self.mbot.mongo.config.find_one({'server_id': message.server.id})
@@ -54,3 +54,11 @@ class Help(BasePlugin):
             msg += '\n'
 
         await self.mbot.send_message(message.channel, msg)
+
+    @command(su=True, description='reload all plugins and commands globally', usage='reload')
+    async def reload(self, message):
+        with await self.mbot.plugin_manager.lock:
+            await self.mbot.plugin_manager.reload_plugins()
+            await self.mbot.send_message(
+                message.channel, f':ok_hand: **Successfully reloaded all plugins!**'
+            )

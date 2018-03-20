@@ -46,8 +46,8 @@ def enable_commands(server_id, commands):
     for command in commands:
         plugin = rpc.plugin_for_command(command)
 
-        # Skip Help plugin.
-        if plugin == 'Help' or not plugin:
+        # Skip Core plugin.
+        if plugin == 'Core' or not plugin:
             success.append(False)
             continue
 
@@ -75,8 +75,8 @@ def disable_commands(server_id, commands):
     for command in commands:
         plugin = rpc.plugin_for_command(command)
 
-        # Skip Help plugin.
-        if plugin == 'Help' or not plugin:
+        # Skip Core plugin.
+        if plugin == 'Core' or not plugin:
             success.append(False)
             continue
 
@@ -118,7 +118,7 @@ def set_prefix(server_id, prefix):
 def mongo_enable_plugin(server_id, plugin):
     rpc = get_rpc_client()
 
-    if plugin == 'Help' or plugin not in rpc.installed_plugins():
+    if plugin == 'Core' or plugin not in rpc.installed_plugins():
         return
 
     doc = db.bot_data.config.find_one(
@@ -140,7 +140,7 @@ def mongo_enable_plugin(server_id, plugin):
 def mongo_disable_plugin(server_id, plugin):
     rpc = get_rpc_client()
 
-    if plugin == 'Help' or plugin not in rpc.installed_plugins():
+    if plugin == 'Core' or plugin not in rpc.installed_plugins():
         return
 
     ret = db.bot_data.config.update_one(
