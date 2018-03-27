@@ -37,6 +37,8 @@ class Core(BasePlugin):
     @command(regex='^commands$', description='displays a list of the currently enabled commands',
              usage='commands', name='commands')
     async def list_commands(self, message):
+        author, channel = message.author, message.channel
+
         msg = '**List of enabled plugins:**\n\n'
         enabled_plugins = await self.mbot.plugin_manager.plugins_for_server(message.server.id)
         commands = await self.mbot.plugin_manager.commands_for_server(message.server.id)
@@ -44,12 +46,18 @@ class Core(BasePlugin):
         for x, plugin in enumerate(enabled_plugins):
             msg += f'**{x+1}. {plugin}:** '
 
-            for i, cmd in enumerate([c.info['name'] for c in enabled_plugins[plugin].commands]):
-                if cmd in commands:
-                    if i + 1 == len(enabled_plugins[plugin].commands):
-                        msg += f'`{cmd}`'
-                    else:
-                        msg += f'`{cmd}`, '
+            # Hide 'su' commands if not superuser
+            filtered_commands = [
+                c.info['name'] for c in enabled_plugins[plugin].commands if not
+                (c.info['perms'][0] and not self.mbot.perms_check(author, channel, c.info['perms'][1], True))
+                and c.info['name'] in commands
+            ]
+
+            for i, cmd in enumerate(filtered_commands):
+                if i + 1 >= len(filtered_commands):
+                    msg += f'`{cmd}`'
+                else:
+                    msg += f'`{cmd}`, '
 
             msg += '\n'
 

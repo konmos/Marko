@@ -1,6 +1,8 @@
 import zerorpc
 from threading import Thread
 
+from discord import User
+
 
 class RPCServer(Thread):
     def __init__(self, obj, *args, host='tcp://127.0.0.1', port=4242, **kwargs):
@@ -42,10 +44,14 @@ class RPC(object):
                 commands[command.info['name']] = {
                     'usage': command.info['usage'],
                     'description': command.info['desc'],
-                    'regex': command._pattern.pattern
+                    'regex': command._pattern.pattern,
+                    'perms': command.info['perms']
                 }
 
         return commands
+
+    def is_user_su(self, user_id):
+        return self.mbot.perms_check(User(id=user_id), su=True)
 
     def reload_plugins(self):
         async def task():

@@ -40,62 +40,64 @@ def get_playlist(server_id):
     return db.plugin_data.voice_player.find_one({'server_id': server_id})
 
 
-def enable_commands(server_id, commands):
+def mongo_enable_cmd(server_id, cmd):
     success, rpc = [], get_rpc_client()
 
-    for command in commands:
-        plugin = rpc.plugin_for_command(command)
+    plugin = rpc.plugin_for_command(cmd)
+    all_commands = rpc.commands_for_plugin(plugin)
+    enabled_commands = plugins_for_server(session.get('active_server')).get(plugin, [])
 
-        # Skip Core plugin.
-        if plugin == 'Core' or not plugin:
-            success.append(False)
-            continue
+    # Skip Core plugin.
+    if (plugin == 'Core' and not rpc.is_user_su(session.get('user')['id'])) or not plugin:
+        return False
 
-        doc = db.bot_data.config.find_one(
-            {'server_id': server_id, 'plugins': {'$elemMatch': {'name': plugin}}}
+    if all_commands[cmd]['perms'][0] and not rpc.is_user_su(session.get('user')['id']):
+        return False
+
+    if not (cmd in all_commands and cmd not in enabled_commands):
+        return False
+
+    doc = db.bot_data.config.find_one(
+        {'server_id': server_id, 'plugins': {'$elemMatch': {'name': plugin}}}
+    )
+
+    if doc:
+        ret = db.bot_data.config.update_one(
+            {'server_id': server_id, 'plugins': {'$elemMatch': {'name': plugin}}},
+            {'$addToSet': {'plugins.$.commands': cmd}}
         )
 
-        if doc:
-            ret = db.bot_data.config.update_one(
-                {'server_id': server_id, 'plugins': {'$elemMatch': {'name': plugin}}},
-                {'$addToSet': {'plugins.$.commands': command}}
-            )
-
-            success.append(bool(ret))
-            continue
-
-        success.append(False)
-
-    return all(success)
+        return bool(ret)
 
 
-def disable_commands(server_id, commands):
-    success, rpc = [], get_rpc_client()
+def mongo_disable_cmd(server_id, cmd):
+    rpc = get_rpc_client()
 
-    for command in commands:
-        plugin = rpc.plugin_for_command(command)
+    plugin = rpc.plugin_for_command(cmd)
+    all_commands = rpc.commands_for_plugin(plugin)
+    enabled_commands = plugins_for_server(session.get('active_server')).get(plugin, [])
 
-        # Skip Core plugin.
-        if plugin == 'Core' or not plugin:
-            success.append(False)
-            continue
+    # Skip Core plugin.
+    if (plugin == 'Core' and not rpc.is_user_su(session.get('user')['id'])) or not plugin:
+        return False
 
-        doc = db.bot_data.config.find_one(
-            {'server_id': server_id, 'plugins': {'$elemMatch': {'name': plugin}}}
+    if all_commands[cmd]['perms'][0] and not rpc.is_user_su(session.get('user')['id']):
+        return False
+
+    if not (cmd in all_commands and cmd in enabled_commands):
+        return False
+
+    doc = db.bot_data.config.find_one(
+        {'server_id': server_id, 'plugins': {'$elemMatch': {'name': plugin}}}
+    )
+
+    if doc:
+        ret = db.bot_data.config.update_one(
+            {'server_id': server_id, 'plugins': {'$elemMatch': {'name': plugin}}},
+            {'$pull': {'plugins.$.commands': cmd}}
         )
 
-        if doc:
-            ret = db.bot_data.config.update_one(
-                {'server_id': server_id, 'plugins': {'$elemMatch': {'name': plugin}}},
-                {'$pull': {'plugins.$.commands': command}}
-            )
-
-            success.append(bool(ret))
-            continue
-
-        success.append(False)
-
-    return all(success)
+        return bool(ret)
 
 
 def get_server_config(server_id):
@@ -232,10 +234,15 @@ def commands():
     all_plugins = rpc.installed_plugins()
 
     for plugin in all_plugins:
-        cmd = rpc.commands_for_plugin(plugin)
+        plugin_commands = rpc.commands_for_plugin(plugin)
 
-        if cmd:
-            all_commands.append((plugin, cmd))
+        if plugin_commands:
+            # Hide 'su' commands
+            for command in plugin_commands.copy().items():
+                if command[1]['perms'][0]:
+                    del plugin_commands[command[0]]
+
+            all_commands.append((plugin, plugin_commands))
 
     return render_template('commands.html', all_commands=all_commands)
 
@@ -248,6 +255,7 @@ def playlist(server):
         abort(404)
 
     return render_template('playlist.html', playlist=pl)
+
 
 @app.route('/dashboard/login')
 def login():
@@ -396,6 +404,8 @@ def get_plugin(plugin):
     enabled_plugins = plugins_for_server(session.get('active_server'))
     guilds = {g['id']: g['name'] for g in get_cached_user_guilds(session.get('user')['id'])}
 
+    su = rpc.is_user_su(session.get('user')['id'])
+
     if os.path.isfile(os.path.join('templates', plugin + '.html')):
         return render_template(plugin + '.html')
     else:
@@ -406,7 +416,8 @@ def get_plugin(plugin):
             commands=rpc.commands_for_plugin(plugin),
             enabled_plugins=enabled_plugins,
             enabled_commands=enabled_plugins.get(plugin, []),
-            server_name=guilds.get(session.get('active_server'), session.get('active_server'))
+            server_name=guilds.get(session.get('active_server'), session.get('active_server')),
+            su=su
         )
 
 
@@ -414,34 +425,16 @@ def get_plugin(plugin):
 @requires_auth
 @requires_server
 def disable_command(command):
-    rpc = get_rpc_client()
-
-    plugin = rpc.plugin_for_command(command)
-    commands = rpc.commands_for_plugin(plugin)
-    enabled_commands = plugins_for_server(session.get('active_server')).get(plugin, [])
-
-    if command in commands and command in enabled_commands:
-        disable_commands(session.get('active_server'), [command])
-        return jsonify(status='ok')
-    else:
-        return jsonify(status='error')
+    ret = mongo_disable_cmd(session.get('active_server'), command)
+    return jsonify(status=('error', 'ok')[bool(ret)])
 
 
 @app.route('/dashboard/enable_command/<command>', methods=['POST'])
 @requires_auth
 @requires_server
 def enable_command(command):
-    rpc = get_rpc_client()
-
-    plugin = rpc.plugin_for_command(command)
-    commands = rpc.commands_for_plugin(plugin)
-    enabled_commands = plugins_for_server(session.get('active_server')).get(plugin, [])
-
-    if command in commands and command not in enabled_commands:
-        enable_commands(session.get('active_server'), [command])
-        return jsonify(status='ok')
-    else:
-        return jsonify(status='error')
+    ret = mongo_enable_cmd(session.get('active_server'), command)
+    return jsonify(status=('error', 'ok')[bool(ret)])
 
 
 @app.route('/dashboard/enable_plugin/<plugin>', methods=['POST'])

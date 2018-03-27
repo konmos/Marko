@@ -10,6 +10,7 @@ from difflib import SequenceMatcher as SM
 import gevent
 import aiohttp
 import discord
+from discord import Permissions
 from concurrent.futures import ThreadPoolExecutor
 
 from .rpc import RPC, RPCServer
@@ -51,6 +52,28 @@ class mBot(discord.Client):
 
         self.executor = ThreadPoolExecutor()
         self.loop.set_default_executor(self.executor)
+
+    def perms_check(self, user, channel=None, required_perms=None, su=False):
+        if user.id is None:
+            return False
+
+        # Check if superuser privileges are required. Generally, this shouldn't be used.
+        # Use discord roles and permissions instead... Use this only for permission checking
+        # at the bot level rather than at a discord server/channel level, eg. things such as
+        # bot restarts and global plugin reloads should use this.
+        if su and user.id not in self.config.superusers:
+            return False
+
+        if channel and required_perms:
+            perms = Permissions(required_perms)
+            actual_perms = user.permissions_in(channel)
+
+            if not actual_perms.administrator:  # Admins bypass all permission checks.
+                # All permissions in `required_perms` which are set, must also be set in `actual_perms`
+                if not all([dict((x[0], x[1]) for x in actual_perms)[p[0]] for p in perms if p[1]]):
+                    return False
+
+        return True
 
     def run_rpc_server(self):
         self.rpc_server = RPCServer(self.rpc, port=4242+self.shard_id+1)

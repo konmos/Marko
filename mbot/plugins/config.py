@@ -211,7 +211,7 @@ class ConfigPlugin(BasePlugin):
             for c in cmd.content.split(','):
                 c = c.strip()
 
-                ret = await self.mbot.plugin_manager.enable_command(message.server.id, c)
+                ret = await self.mbot.plugin_manager.enable_command(message.server.id, c, user_id=message.author.id)
 
                 if ret:
                     await self.mbot.send_message(
@@ -240,7 +240,7 @@ class ConfigPlugin(BasePlugin):
             for c in cmd.content.split(','):
                 c = c.strip()
 
-                ret = await self.mbot.plugin_manager.disable_command(message.server.id, c)
+                ret = await self.mbot.plugin_manager.disable_command(message.server.id, c, user_id=message.author.id)
 
                 if ret:
                     await self.mbot.send_message(

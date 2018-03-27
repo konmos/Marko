@@ -68,43 +68,25 @@ def command(*, regex='', usage='', description='', name='', call_on_message=Fals
                 timestamp = history.get(wrapper.info['name'], None)
 
                 if timestamp is not None and timestamp + cooldown > time.time():
-                    await self.mbot.send_message(
+                    return await self.mbot.send_message(
                         message.channel,
                         f'**Whoah! You\'re doing that too often {message.author.mention}...**'
                     )
-                    return
 
             # Check NSFW status
             config = await self.mbot.mongo.config.find_one({'server_id': message.server.id})
 
             if nsfw and message.channel.id not in config['nsfw_channels']:
-                await self.mbot.send_message(message.channel, '*You cannot use NSFW commands here...*')
-                return
+                return await self.mbot.send_message(message.channel, '*You cannot use NSFW commands here...*')
 
             # Check if the user has necessary permissions.
-            if perms is not None:
-                required_perms = Permissions(perms)
-                actual_perms = message.author.permissions_in(message.channel)
-
-                if not actual_perms.administrator:  # Admins bypass all permission checks.
-                    # All permissions in `required_perms` which are set, must also be set in `actual_perms`
-                    if not all([dict((x[0], x[1]) for x in actual_perms)[p[0]] for p in required_perms if p[1]]):
-                        await self.mbot.send_message(message.channel, '*You do not have permission to do that...*')
-                        return
-
-            # Check if superuser privileges are required. Generally, this shouldn't be used.
-            # Use discord roles and permissions instead... Use this only for permission checking
-            # at the bot level rather than at a discord server/channel level, eg. things such as
-            # bot restarts and global plugin reloads should use this.
-            if su and message.author.id not in self.mbot.config.superusers:
-                await self.mbot.send_message(message.channel, '*You do not have permission to do that...*')
-                return
+            if not self.mbot.perms_check(message.author, message.channel, perms, su):
+                return await self.mbot.send_message(message.channel, '*You do not have permission to do that...*')
 
             try:
                 await func(self, message, *match.groups())
             except Forbidden:
                 log.error(f'forbidden to run command {wrapper.info["name"]} in server {message.server.id}')
-
                 msg = await self.mbot.send_message(message.channel, '*I cannot do that...* :cry:')
                 await asyncio.sleep(5)
                 await self.mbot.delete_message(msg)
@@ -133,10 +115,11 @@ def command(*, regex='', usage='', description='', name='', call_on_message=Fals
 
         wrapper.info = {
             'usage': usage or '',
-            'desc': description,
+            'desc': description or '',
             'name': name or func.__name__,
             'plugin': '',
-            'aliases': aliases or []
+            'aliases': aliases or [],
+            'perms': (su, perms)
         }
 
         return wrapper

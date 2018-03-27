@@ -3,6 +3,7 @@ import logging
 import importlib.util
 
 import asyncio
+from discord import User
 
 from .plugins import plugins
 from .plugin_registry import PluginRegistry
@@ -203,14 +204,22 @@ class PluginManager(object):
 
         return plugin_name
 
-    async def enable_command(self, server_id, command):
+    async def enable_command(self, server_id, command, user_id=None):
         log.debug(f'enabling {command} command for server {server_id}')
 
         plugin_name = self._plugin_for_cmd(command)
 
-        # Skip Core plugin.
-        if plugin_name == 'Core' or not plugin_name:
+        if not plugin_name:
             return False
+
+        if not self.mbot.perms_check(User(id=user_id), su=True):
+            # Skip Core plugin.
+            if plugin_name == 'Core':
+                return False
+
+            # Skip 'su' commands if not superuser
+            if self.commands[command][2].info['perms'][0]:
+                return False
 
         doc = await self.mbot.mongo.config.find_one(
                 {'server_id': server_id, 'plugins': {'$elemMatch': {'name': plugin_name}}}
@@ -229,14 +238,22 @@ class PluginManager(object):
 
             return bool(ret)
 
-    async def disable_command(self, server_id, command):
+    async def disable_command(self, server_id, command, user_id=None):
         log.debug(f'disabling {command} command for server {server_id}')
 
         plugin_name = self._plugin_for_cmd(command)
 
-        # Skip Core plugin.
-        if plugin_name == 'Core' or not plugin_name:
+        if not plugin_name:
             return False
+
+        if not self.mbot.perms_check(User(id=user_id), su=True):
+            # Skip Core plugin.
+            if plugin_name == 'Core':
+                return False
+
+            # Skip 'su' commands if not superuser
+            if self.commands[command][2].info['perms'][0]:
+                return False
 
         doc = await self.mbot.mongo.config.find_one(
                 {'server_id': server_id, 'plugins': {'$elemMatch': {'name': plugin_name}}}
