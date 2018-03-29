@@ -16,6 +16,10 @@ class InvalidKey(Exception):
     '''Raised when we try to use a key which does not exist.'''
 
 
+class KeyUnauthorised(Exception):
+    '''Raised when we try to use a key which does not exist.'''
+
+
 def calculate_expire_time(start_time, months):
     date = datetime.date.fromtimestamp(start_time)
 
@@ -29,17 +33,17 @@ def calculate_expire_time(start_time, months):
 
 class Key(object):
     def __init__(self, **key_data):
-        self.key = key_data.get('key', str(uuid.uuid4()))
-        self.ttl = int(key_data.get('ttl', 24*60*60*5))
-        self.time_generated = key_data.get('time_generated', time.time())
+        self.key = key_data.get('key') or str(uuid.uuid4())
+        self.ttl = int(key_data.get('ttl') or 24*60*60*5)
+        self.time_generated = key_data.get('time_generated') or time.time()
         self.generated_by = key_data.get('generated_by')
         self.expires = key_data.get('expires')
-        self.key_type = key_data.get('key_type', 'pro-1')
-        self.authorised_users = key_data.get('authorised_users', [])
-        self.max_uses = int(key_data.get('max_uses', 1))
-        self.uses_remaining = int(key_data.get('uses_remaining', 1))
-        self.key_note = key_data.get('key_note', '')
-        self.usage = key_data.get('usage', [])
+        self.key_type = key_data.get('key_type') or 'pro-1'
+        self.authorised_users = key_data.get('authorised_users') or []
+        self.max_uses = int(key_data.get('max_uses') or 1)
+        self.uses_remaining = int(key_data.get('uses_remaining') or 1)
+        self.key_note = key_data.get('key_note') or 'default key'
+        self.usage = key_data.get('usage') or []
 
         self._update_expire_time()
         self._update_uses_remaining()
@@ -47,6 +51,17 @@ class Key(object):
     @property
     def expired(self):
         return self.uses_remaining <= 0 or self.expires < time.time()
+
+    @property
+    def readable_type(self):
+        key_type = self.key_type.split('-')
+
+        if key_type[1] == 'i':
+            upgrade_len = 'Lifetime'
+        else:
+            upgrade_len = key_type[1] + 'Months' if int(key_type[1]) > 1 else 'Month'
+
+        return f'Marko Premium - {upgrade_len}'
 
     @property
     def key_data(self):
@@ -68,7 +83,10 @@ class Key(object):
         self.uses_remaining = self.max_uses - len(self.usage)
 
     def _update_expire_time(self):
-        self.expires = self.time_generated + self.ttl
+        if self.ttl != -1:
+            self.expires = self.time_generated + self.ttl
+        else:
+            self.expires = -1
 
     def add_authorised_user(self, user):
         if user not in self.authorised_users:
@@ -95,6 +113,9 @@ class Key(object):
 
         if self.expired:
             raise KeyExpired
+
+        if self.authorised_users and user_id not in self.authorised_users:
+            raise KeyUnauthorised
 
         key_id = len(self.usage)
 
@@ -164,15 +185,32 @@ class PremiumManager(object):
 
         key = Key(
             generated_by=user_id or app_info.owner.id,
-            authorised_users=authorised_users or [],
-            key_note=note or '',
-            key_type=key_type or 'pro-1',
+            authorised_users=authorised_users,
+            key_note=note,
+            key_type=key_type,
             max_uses=max_uses,
-            ttl=ttl or 24*60*60*5
+            ttl=ttl
         )
 
         await self.keys_db.insert_one(key.key_data)
         return key
+
+    async def is_key_valid(self, key):
+        key_data = await self.keys_db.find_one({'key': key})
+
+        if key_data:
+            key_obj = Key(**key_data)
+
+            if not key_obj.expired:
+                return True
+
+        return False
+
+    async def get_key(self, key):
+        key_data = await self.keys_db.find_one({'key': key})
+
+        if key_data:
+            return Key(**key_data)
 
     async def upgrade_guild(self, server_id, user_id, key):
         key_data = await self.keys_db.find_one({'key': key})

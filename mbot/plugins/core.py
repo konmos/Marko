@@ -1,5 +1,6 @@
 from ..plugin import BasePlugin
 from ..command import command
+from ..premium_manager import KeyUnauthorised
 
 
 DEFAULT_HELP = (
@@ -73,3 +74,43 @@ class Core(BasePlugin):
             await self.mbot.send_message(
                 message.channel, f':ok_hand: **Successfully reloaded all plugins!**'
             )
+
+    @command(regex='^upgrade (.*?)$', usage='upgrade <key>',
+             description='upgrade this guild to premium status with a key')
+    async def upgrade(self, message, key):
+        if not await self.mbot.premium_manager.is_key_valid(key):
+            return await self.mbot.send_message(
+                message.channel,
+                '**That key appears to be invalid!** :cry:'
+            )
+
+        key_obj = await self.mbot.premium_manager.get_key(key)
+
+        m = await self.mbot.send_message(
+            message.channel,
+            f'**Are you sure you want to upgrade *"{message.server.name}"* with this key?**\n'
+            f'```Key: {key_obj.key}\nNote: {key_obj.key_note}\nUses remaining: {key_obj.uses_remaining}\n'
+            f'Upgrade type: {key_obj.readable_type}```'
+            '*tip: react to this message to let me know what to do*'
+        )
+
+        await self.mbot.add_reaction(m, '\u2705')
+        await self.mbot.add_reaction(m, '\u274C')
+
+        ret = await self.mbot.wait_for_reaction(['\u2705', '\u274C'], message=m, user=message.author, timeout=60)
+
+        if ret is not None:
+            if str(ret[0].emoji) == '\u2705':
+                try:
+                    await self.mbot.premium_manager.upgrade_guild(message.server.id, message.author.id, key)
+                    return await self.mbot.send_message(
+                        message.channel, f'{message.author.mention} **Guild upgraded!** :ok_hand:'
+                    )
+                except KeyUnauthorised:
+                    return await self.mbot.send_message(
+                        message.channel, f'{message.author.mention} **You cannot use that key!**'
+                    )
+
+        return await self.mbot.send_message(
+            message.channel, f'{message.author.mention} **Guild could not be upgraded!** :cry:'
+        )
