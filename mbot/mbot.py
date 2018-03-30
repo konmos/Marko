@@ -13,6 +13,7 @@ import discord
 from discord import Permissions
 from concurrent.futures import ThreadPoolExecutor
 
+from .status import Status
 from .rpc import RPC, RPCServer
 from .premium_manager import PremiumManager
 from .plugin_manager import PluginManager
@@ -52,6 +53,8 @@ class mBot(discord.Client):
 
         self.executor = ThreadPoolExecutor()
         self.loop.set_default_executor(self.executor)
+
+        self.status = Status(self)
 
     def perms_check(self, user, channel=None, required_perms=None, su=False):
         if user.id is None:
@@ -239,8 +242,6 @@ class mBot(discord.Client):
             {'scope': 'global'},
             {'$set': {'num_guilds': len(self.servers)}}
         )
-
-        await self.change_presence(game=discord.Game(name=f'in {len(self.servers)} servers'))
 
         for plugin in self.plugin_manager.plugins:
             self.loop.create_task(plugin.on_ready())
