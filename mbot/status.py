@@ -10,16 +10,17 @@ class Status(object):
     # type:
     #   0: Playing, 1: Streaming, 2: Listening, 3: Watching (Undocumented!?)
     statuses = [
-        ('Anime', None, 3, 60*6),
-        ('Gwent', None, 0, 60*6),
-        ('markobot.xyz', None, 0, 60*10),
-        ('m!help', None, 0, 60*10),
-        ('Spotify', None, 2, 60*6),
-        ('with Playing with', None, 0, 60*6),
-        ('with fire', None, 0, 60*6),
-        ('chess for years', None, 0, 60*6),
-        ('in {servers} guilds', None, 0, 60*6),
-        ('the world burn', None, 3, 60*6)
+        ('Anime', None, 3, 60*10),
+        ('Gwent', None, 0, 60*10),
+        ('markobot.xyz', None, 0, 60*15),
+        ('m!help', None, 0, 60*15),
+        ('Spotify', None, 2, 60*10),
+        ('with Playing with', None, 0, 60*10),
+        ('with fire', None, 0, 60*10),
+        ('chess for years', None, 0, 60*10),
+        ('in {servers} guilds', None, 0, 60*10),
+        ('the world burn', None, 3, 60*10),
+        ('you', None, 3, 60*10)
     ]
 
     def __init__(self, mbot):
