@@ -2,9 +2,11 @@ import os
 import io
 import re
 import sys
+import time
 import struct
 import signal
 import logging
+from collections import defaultdict
 from difflib import SequenceMatcher as SM
 
 import gevent
@@ -55,6 +57,10 @@ class mBot(discord.Client):
         self.loop.set_default_executor(self.executor)
 
         self.status = Status(self)
+
+        # recent_commands:
+        #   {user_id: [cmd_timestamp, ...], ...}
+        self.recent_commands = defaultdict(list)
 
     def perms_check(self, user, channel=None, required_perms=None, su=False):
         if user.id is None:
@@ -260,6 +266,22 @@ class mBot(discord.Client):
     #    for plugin in self.plugin_manager.plugins:
     #        self.loop.create_task(plugin.on_error(event, *args, **kwargs))
 
+    def clean_commands_cache(self):
+        timestamp = time.time()
+        cache_copy = self.recent_commands.copy()
+
+        for entry in cache_copy:
+            # We only want to keep most recent commands, ie. commands at most 5 seconds old.
+            filtered_records = [x for x in cache_copy[entry] if x + 5 > timestamp]
+
+            if filtered_records:
+                if filtered_records == cache_copy[entry]:
+                    continue
+
+                self.recent_commands[entry] = filtered_records
+            else:
+                del self.recent_commands[entry]
+
     async def on_message(self, message):
         '''Called when a message is created and sent to a server.'''
         log.debug(f'{sys._getframe().f_code.co_name} event triggered')
@@ -311,12 +333,28 @@ class mBot(discord.Client):
         commands = await self.plugin_manager.commands_for_server(message.server.id)
 
         if cmd:
-            for command in commands.values():
-                if command._pattern.match(message.content):
-                    self.loop.create_task(command(message))
+            if max(self.recent_commands.get(message.author.id, [0])) + 1 > time.time():
+                await self.send_message(
+                    message.channel, f'**Whoah! You\'re doing that too often {message.author.name}!**'
+                )
+            else:
+                for command in commands.values():
+                    if command._pattern.match(message.content):
+                        self.recent_commands[message.author.id].append(time.time())
+                        self.loop.create_task(command(message))
+                        matched_cmd = command
+                        break  # Ignore possible name conflicts... Commands should have unique names!
+                else:
+                    # No command was found... Suggest possible fixes.
+                    fixes = [
+                        (SM(None, message.content, x).ratio(), x) for x in commands.keys()
+                        ]
 
-                    matched_cmd = command
-                    break  # Ignore possible name conflicts... Commands should have unique names!
+                    best_candidate = max(fixes, key=lambda x: x[0])[1]
+
+                    await self.send_message(
+                        message.channel, f'*I couldn\'t understand that... How about running **{best_candidate}***?'
+                    )
 
         plugins = await self.plugin_manager.plugins_for_server(message.server.id)
 
@@ -327,17 +365,8 @@ class mBot(discord.Client):
             if matched_cmd is None or matched_cmd.info['plugin'] != plugin.__class__.__name__:
                 self.loop.create_task(plugin.on_message(message))
 
-        # No command was found... Suggest possible fixes.
-        if not matched_cmd and cmd:
-            fixes = [
-                (SM(None, message.content, x).ratio(), x) for x in commands.keys()
-            ]
-
-            best_candidate = max(fixes, key=lambda x: x[0])[1]
-
-            await self.send_message(
-                message.channel, f'*I couldn\'t understand that... How about running **{best_candidate}***?'
-            )
+        if cmd:
+            self.clean_commands_cache()
 
     async def on_socket_raw_receive(self, msg):
         '''Called whenever a message is received from the websocket.'''

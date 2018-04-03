@@ -70,7 +70,8 @@ def command(*, regex='', usage='', description='', name='', call_on_message=Fals
                 if timestamp is not None and timestamp + cooldown > time.time():
                     return await self.mbot.send_message(
                         message.channel,
-                        f'**Whoah! You\'re doing that too often {message.author.mention}...**'
+                        f'**{message.author.name}, slow down there (this command has a cooldown)...\n'
+                        f'*{int((timestamp + cooldown) - time.time())}* second(s) remaining.**'
                     )
 
             # Check NSFW status
