@@ -4,7 +4,7 @@ import logging
 from functools import wraps
 
 import asyncio
-from discord import Permissions, Forbidden
+from discord import Forbidden
 
 log = logging.getLogger(__name__)
 
