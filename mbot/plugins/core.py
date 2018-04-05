@@ -141,3 +141,18 @@ class Core(BasePlugin):
         return await self.mbot.send_message(
             message.channel, f'{message.author.mention} **Guild could not be upgraded!** :cry:'
         )
+
+    @command(su=True, regex='^keygen(?: (.*?))?$', description='generate an upgrade key')
+    async def keygen(self, message, args=None):
+        if args:
+            key_data = dict(x.strip().split('=') for x in args.split(','))
+        else:
+            key_data = {}
+
+        key = await self.mbot.premium_manager.generate_key(**key_data)
+
+        await self.mbot.send_message(
+            message.channel,
+            f'```Key: {key.key}\nType: {key.key_type}\nTTL: {key.ttl}\nMax uses: {key.max_uses}'
+            f'\nNote: {key.key_note}```'
+        )
