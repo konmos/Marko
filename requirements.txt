@@ -7,5 +7,5 @@ pyyaml
 pymongo
 praw
 zerorpc
-gevent
 motor
+python-dateutil

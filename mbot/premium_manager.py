@@ -1,7 +1,7 @@
 import uuid
 import time
 import datetime
-import calendar
+from dateutil.relativedelta import relativedelta
 
 
 class KeyUsageExceeded(Exception):
@@ -20,15 +20,11 @@ class KeyUnauthorised(Exception):
     '''Raised when we try to use a key which does not exist.'''
 
 
-def calculate_expire_time(start_time, months):
+def calculate_expire_time(start_time, months=0, days=0):
     date = datetime.date.fromtimestamp(start_time)
+    new_date = date + relativedelta(months=months, days=days)
 
-    month = date.month - 1 + months
-    year = date.year + month // 12
-    month = month % 12 + 1
-    day = min(date.day, calendar.monthrange(year, month)[1])
-
-    return time.mktime(datetime.date(year, month, day).timetuple())
+    return time.mktime(new_date.timetuple())
 
 
 class Key(object):
