@@ -70,7 +70,7 @@ class Key(object):
         if key_type[1] == 'i':
             upgrade_len = 'Lifetime'
         else:
-            upgrade_len = key_type[1] + 'Months' if int(key_type[1]) > 1 else 'Month'
+            upgrade_len = key_type[1] + ('Months' if int(key_type[1]) > 1 else 'Month')
 
         return f'Marko Premium - {upgrade_len}'
 
