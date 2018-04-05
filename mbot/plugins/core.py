@@ -103,6 +103,7 @@ class Core(BasePlugin):
             if str(ret[0].emoji) == '\u2705':
                 try:
                     await self.mbot.premium_manager.upgrade_guild(message.server.id, message.author.id, key)
+                    await self.mbot.change_nickname(message.server.me, 'Marko Premium')
                     return await self.mbot.send_message(
                         message.channel, f'{message.author.mention} **Guild upgraded!** :ok_hand:'
                     )
