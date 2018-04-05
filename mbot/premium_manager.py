@@ -1,7 +1,16 @@
 import uuid
 import time
+import random
 import datetime
 from dateutil.relativedelta import relativedelta
+
+
+DEFAULT_KEY_NOTES = (
+    'key made just for you <3',
+    'key forged in the finest Mahakaman workshop',
+    'a key fit for Marko himself',
+    'thanks for your support! <3'
+)
 
 
 class KeyUsageExceeded(Exception):
@@ -28,21 +37,27 @@ def calculate_expire_time(start_time, months=0, days=0):
 
 
 class Key(object):
+    '''
+    Data class used to represent an upgrade key.
+    '''
     def __init__(self, **key_data):
         self.key = key_data.get('key') or str(uuid.uuid4())
         self.ttl = int(key_data.get('ttl') or 24*60*60*5)
         self.time_generated = key_data.get('time_generated') or time.time()
         self.generated_by = key_data.get('generated_by')
-        self.expires = key_data.get('expires')
         self.key_type = key_data.get('key_type') or 'pro-1'
         self.authorised_users = key_data.get('authorised_users') or []
         self.max_uses = int(key_data.get('max_uses') or 1)
-        self.uses_remaining = int(key_data.get('uses_remaining') or 1)
-        self.key_note = key_data.get('key_note') or 'default key'
+        self.key_note = key_data.get('key_note') or random.choice(DEFAULT_KEY_NOTES)
         self.usage = key_data.get('usage') or []
 
-        self._update_expire_time()
-        self._update_uses_remaining()
+    @property
+    def uses_remaining(self):
+        return self.max_uses - len(self.usage)
+
+    @property
+    def expires(self):
+        return self.time_generated + self.ttl if self.ttl != -1 else -1
 
     @property
     def expired(self):
@@ -66,42 +81,12 @@ class Key(object):
             'ttl': self.ttl,
             'time_generated': self.time_generated,
             'generated_by': self.generated_by,
-            'expires': self.expires,
             'key_type': self.key_type,
             'authorised_users': self.authorised_users,
             'max_uses': self.max_uses,
-            'uses_remaining': self.uses_remaining,
             'key_note': self.key_note,
             'usage': self.usage
         }
-
-    def _update_uses_remaining(self):
-        self.uses_remaining = self.max_uses - len(self.usage)
-
-    def _update_expire_time(self):
-        if self.ttl != -1:
-            self.expires = self.time_generated + self.ttl
-        else:
-            self.expires = -1
-
-    def add_authorised_user(self, user):
-        if user not in self.authorised_users:
-            self.authorised_users.append(user)
-
-    def remove_authorised_user(self, user):
-        if user in self.authorised_users:
-            self.authorised_users.remove(user)
-
-    def update_max_uses(self, update_by):
-        self.max_uses += update_by
-        self._update_uses_remaining()
-
-    def set_max_uses(self, value):
-        self.max_uses = value
-        self._update_uses_remaining()
-
-    def set_key_note(self, note):
-        self.key_note = note
 
     def redeem_key(self, user_id, server_id):
         if self.uses_remaining <= 0:
@@ -122,15 +107,23 @@ class Key(object):
             'timestamp': time.time()
         })
 
-        self._update_uses_remaining()
         return key_id
 
 
 class PremiumGuild(object):
-    def __init__(self, guild_id, key, key_id=0):
+    '''
+    Data class to represent a premium guild.
+    '''
+    def __init__(self, guild_id, key, key_id=0, expires=None):
         self.key = key
         self.guild_id = guild_id
         self.key_id = int(key_id)
+
+        self.expires = expires or self._calculate_expire_time()
+
+    def _calculate_expire_time(self):
+        upgrade_len = self.key.key_type[-1]
+        return calculate_expire_time(self.time_upgraded, int(upgrade_len)) if not upgrade_len == 'i' else -1
 
     @property
     def upgraded_by(self):
@@ -141,11 +134,6 @@ class PremiumGuild(object):
     def time_upgraded(self):
         _keys = {k['key_id']: {'user_id': k['user_id'], 'timestamp': k['timestamp']} for k in self.key.usage}
         return _keys.get(self.key_id, {}).get('timestamp', 0)
-
-    @property
-    def expires(self):
-        upgrade_len = self.key.key_type[-1]
-        return calculate_expire_time(self.time_upgraded, int(upgrade_len)) if not upgrade_len == 'i' else -1
 
     @property
     def expired(self):
@@ -174,7 +162,7 @@ class PremiumManager(object):
             key, key_id = doc['key'].split('#')
             key_data = await self.keys_db.find_one({'key': key})
 
-            return PremiumGuild(server_id, Key(**key_data), key_id)
+            return PremiumGuild(server_id, Key(**key_data), key_id, doc['expires'])
 
     async def generate_key(self, user_id=None, max_uses=1, note=None, authorised_users=None, key_type=None, ttl=None):
         app_info = await self.mbot.application_info()
