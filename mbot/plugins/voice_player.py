@@ -245,6 +245,17 @@ class VoicePlayer(BasePlugin):
     @command(regex='^play <?(.*?)>?(?: (.*?))?$', description='stream audio from a url',
              usage='play <url> [channel]', cooldown=10)
     async def play(self, message, url, channel_name=None):
+        if self.is_voice_connected(message.server):
+            if message.author in message.server.voice_client.channel.voice_members:
+                max_users = 2
+            else:
+                max_users = 1
+
+            if not len(message.server.voice_client.channel.voice_members) <= max_users:
+                return await self.mbot.send_message(
+                    message.channel, '**You cannot restart the player while others are listening!**'
+                )
+
         connected = await self.join_voice_channel(message, channel_name)
 
         if not connected:
@@ -312,6 +323,17 @@ class VoicePlayer(BasePlugin):
     @command(regex='^queue start(?: (.*?))?$', name='queue start', description='start the queue',
              usage='queue start [channel]', cooldown=10)
     async def queue_play(self, message, channel_name=None):
+        if self.is_voice_connected(message.server):
+            if message.author in message.server.voice_client.channel.voice_members:
+                max_users = 2
+            else:
+                max_users = 1
+
+            if not len(message.server.voice_client.channel.voice_members) <= max_users:
+                return await self.mbot.send_message(
+                    message.channel, '**You cannot restart the player while others are listening!**'
+                )
+
         connected = await self.join_voice_channel(message, channel_name)
 
         if not connected:
