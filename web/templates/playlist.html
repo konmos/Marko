@@ -17,7 +17,7 @@
 <div class="d-flex align-items-center p-3 my-3 text-white-50 bg-blurple rounded box-shadow">
     <div class="lh-100">
       <h6 class="mb-0 text-white lh-100">Now Playing <strong><a target="_blank" style="text-decoration: inherit; color: inherit;" href="{{playlist['now_playing']['url']}}">{{playlist['now_playing']['title']}}</a></strong></h6>
-        <small>Added by {{playlist['now_playing']['user']}}</small>
+      <small>Added by {{playlist['now_playing']['user']}}</small>
     </div>
 </div>
 {% endif %}
@@ -30,6 +30,9 @@
     <p class="media-body pb-3 mb-0 small lh-125">
       <strong class="d-block text-gray-dark"><a target="_blank" style="text-decoration: inherit; color: inherit;" href="{{song['url']}}">{{ song['title'] }}</a></strong>
       Added by {{song['user']}}
+      {% if song['duration'] %}
+      <span style="float:right;">Duration: {{ human_time(song['duration']) }}</span>
+      {% endif %}
     </p>
   </div>
   {%- endfor %}

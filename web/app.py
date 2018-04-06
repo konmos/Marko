@@ -1,4 +1,5 @@
 import os
+import math
 import time
 import zerorpc
 from functools import wraps
@@ -219,6 +220,19 @@ def csrf_token():
 
 app.jinja_env.globals['generate_csrf_token'] = generate_csrf_token
 app.jinja_env.globals['csrf_token'] = csrf_token
+
+
+# UTILITIES
+def human_time(seconds):
+    if seconds >= 3600:
+        return f'{math.ceil(seconds / 3600)} hour(s)'
+    elif seconds >= 60:
+        return f'{math.ceil(seconds / 60)} minute(s)'
+    else:
+        return f'{seconds} second(s)'
+
+
+app.jinja_env.globals['human_time'] = human_time
 
 
 # DASHBOARD
