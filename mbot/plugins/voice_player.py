@@ -323,6 +323,7 @@ class VoicePlayer(BasePlugin):
             self.stop_player(message.server.id)
             self.kill_queue(message.server.id)
             self.players[message.server.id].q_loop = self.mbot.loop.create_task(self.queue_loop(message))
+            self.players[message.server.id].done_playing.set()
 
     @command(description='shuffle the playlist', usage='shuffle')
     async def shuffle(self, message):
