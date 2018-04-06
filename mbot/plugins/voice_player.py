@@ -182,6 +182,30 @@ class VoicePlayer(BasePlugin):
         if self.players[server].player is not None:
             self.players[server].player.stop()
 
+    def is_current_channel_empty(self, message):
+        # A voice channel is considered empty if there are no users in it,
+        # or if the only users in it are the message author and/or the bot itself.
+        if self.is_voice_connected(message.server):
+            if message.author in message.server.voice_client.channel.voice_members:
+                max_users = 2
+            else:
+                max_users = 1
+
+            if not len(message.server.voice_client.channel.voice_members) <= max_users:
+                return False
+
+        return True
+
+    async def check_empty_channel(self, message):
+        channel_empty = self.is_current_channel_empty(message)
+
+        if channel_empty or message.author.permissions_in(message.channel).administrator:
+            return True
+
+        await self.mbot.send_message(
+            message.channel, '**You cannot restart the player while others are listening!**'
+        )
+
     async def _join_voice_channel(self, server, channel):
         '''
         Join a voice channel in a server. This disconnects the client if it exists, and rejoins.
@@ -237,6 +261,9 @@ class VoicePlayer(BasePlugin):
 
     @command(regex='^join(?: (.*?))?$', description='join a voice channel', usage='join [channel]')
     async def join(self, message, channel_name=None):
+        if not await self.check_empty_channel(message):
+            return
+
         connected = await self.join_voice_channel(message, channel_name)
 
         if not connected:
@@ -245,16 +272,8 @@ class VoicePlayer(BasePlugin):
     @command(regex='^play <?(.*?)>?(?: (.*?))?$', description='stream audio from a url',
              usage='play <url> [channel]', cooldown=10)
     async def play(self, message, url, channel_name=None):
-        if self.is_voice_connected(message.server):
-            if message.author in message.server.voice_client.channel.voice_members:
-                max_users = 2
-            else:
-                max_users = 1
-
-            if not len(message.server.voice_client.channel.voice_members) <= max_users:
-                return await self.mbot.send_message(
-                    message.channel, '**You cannot restart the player while others are listening!**'
-                )
+        if not await self.check_empty_channel(message):
+            return
 
         connected = await self.join_voice_channel(message, channel_name)
 
@@ -266,6 +285,9 @@ class VoicePlayer(BasePlugin):
 
     @command(regex='^stop$', description='stop the player', usage='stop')
     async def stop(self, message):
+        if not await self.check_empty_channel(message):
+            return
+
         self.stop_player(message.server.id)
         self.kill_queue(message.server.id)
         del self.players[message.server.id]
@@ -323,16 +345,8 @@ class VoicePlayer(BasePlugin):
     @command(regex='^queue start(?: (.*?))?$', name='queue start', description='start the queue',
              usage='queue start [channel]', cooldown=10)
     async def queue_play(self, message, channel_name=None):
-        if self.is_voice_connected(message.server):
-            if message.author in message.server.voice_client.channel.voice_members:
-                max_users = 2
-            else:
-                max_users = 1
-
-            if not len(message.server.voice_client.channel.voice_members) <= max_users:
-                return await self.mbot.send_message(
-                    message.channel, '**You cannot restart the player while others are listening!**'
-                )
+        if not await self.check_empty_channel(message):
+            return
 
         connected = await self.join_voice_channel(message, channel_name)
 
