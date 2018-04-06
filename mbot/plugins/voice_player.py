@@ -248,7 +248,7 @@ class VoicePlayer(BasePlugin):
         connected = await self.join_voice_channel(message, channel_name)
 
         if not connected:
-            await self.mbot.send_message(message.channel, '*I could not connect to any voice channels...*')
+            return await self.mbot.send_message(message.channel, '*I could not connect to any voice channels...*')
 
         info = await self.play_url(message, url)
         await self.mbot.send_message(message.channel, f':notes: | Playing | **{info["title"]}**')
