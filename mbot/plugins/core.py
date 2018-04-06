@@ -149,6 +149,9 @@ class Core(BasePlugin):
         else:
             key_data = {}
 
+        if key_data.get('authorised_users'):
+            key_data['authorised_users'] = key_data.get('authorised_users').split(';')
+
         key = await self.mbot.premium_manager.generate_key(**key_data)
 
         await self.mbot.send_message(
