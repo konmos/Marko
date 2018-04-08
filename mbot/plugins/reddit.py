@@ -22,7 +22,7 @@ if _cfg.plugin_data.get('reddit', {}).get('client_id', '') and \
             self.client_id = self.mbot.config.plugin_data.get('reddit', {}).get('client_id', '')
             self.client_secret = self.mbot.config.plugin_data.get('reddit', {}).get('client_secret', '')
 
-            self.user_agent = f'{os.name}:github.com/konmos/MarkoBot:v0-{self.client_id[:6]} (by /u/Kojak2)'
+            self.user_agent = f'{os.name}:github.com/konmos/MarkoBot:v0-{self.client_id[:6]} (/u/markothebot)'
 
             self.reddit = praw.Reddit(
                 client_id=self.client_id,
