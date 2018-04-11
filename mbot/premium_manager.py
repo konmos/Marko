@@ -26,7 +26,7 @@ class InvalidKey(Exception):
 
 
 class KeyUnauthorised(Exception):
-    '''Raised when we try to use a key which does not exist.'''
+    '''Raised when an unauthorised user tries to redeem a key.'''
 
 
 def calculate_expire_time(start_time, months=0, days=0):
@@ -42,7 +42,7 @@ class Key(object):
     '''
     def __init__(self, **key_data):
         self.key = key_data.get('key') or str(uuid.uuid4())
-        self.ttl = int(key_data.get('ttl') or 24*60*60*5)
+        self.ttl = int(key_data.get('ttl') or -1)
         self.time_generated = key_data.get('time_generated') or time.time()
         self.generated_by = key_data.get('generated_by')
         self.key_type = key_data.get('key_type') or 'pro-1'
@@ -50,10 +50,11 @@ class Key(object):
         self.max_uses = int(key_data.get('max_uses') or 1)
         self.key_note = key_data.get('key_note') or random.choice(DEFAULT_KEY_NOTES)
         self.usage = key_data.get('usage') or []
+        self.reserved_uses = key_data.get('reserved_uses') or []
 
     @property
     def uses_remaining(self):
-        return self.max_uses - len(self.usage)
+        return self.max_uses - (len(self.usage) + len(self.reserved_uses))
 
     @property
     def expires(self):
@@ -61,7 +62,7 @@ class Key(object):
 
     @property
     def expired(self):
-        return self.uses_remaining <= 0 or self.expires < time.time()
+        return self.uses_remaining <= 0 or self.expires < time.time() if self.expires != -1 else False
 
     @property
     def readable_type(self):
@@ -85,19 +86,22 @@ class Key(object):
             'authorised_users': self.authorised_users,
             'max_uses': self.max_uses,
             'key_note': self.key_note,
-            'usage': self.usage
+            'usage': self.usage,
+            'reserved_uses': self.reserved_uses
         }
 
-    def redeem_key(self, user_id, server_id):
+    def _check_key(self, user_id=None):
         if self.uses_remaining <= 0:
             raise KeyUsageExceeded
 
         if self.expired:
             raise KeyExpired
 
-        if self.authorised_users and user_id not in self.authorised_users:
-            raise KeyUnauthorised
+        if user_id is not None:
+            if self.authorised_users and user_id not in self.authorised_users:
+                raise KeyUnauthorised
 
+    def _redeem_key(self, user_id, server_id):
         key_id = len(self.usage)
 
         self.usage.append({
@@ -109,16 +113,39 @@ class Key(object):
 
         return key_id
 
+    def redeem_key(self, user_id, server_id):
+        self._check_key(user_id)
+        return self._redeem_key(user_id, server_id)
+
+    def reserve_key(self, user_id, server_id):
+        self._check_key(user_id)
+
+        self.reserved_uses.append({
+            'user_id': user_id,
+            'server_id': server_id
+        })
+
+    def redeem_from_reserve(self, user_id, server_id):
+        for data in self.reserved_uses:
+            if data['user_id'] == user_id and data['server_id'] == server_id:
+                break
+        else:
+            return
+
+        self.reserved_uses.remove(data)
+        return self._redeem_key(data['user_id'], data['server_id'])
+
 
 class PremiumGuild(object):
     '''
     Data class to represent a premium guild.
     '''
-    def __init__(self, guild_id, key, key_id=0, expires=None):
-        self.key = key
+    def __init__(self, guild_id, key, key_id=0, expires=None, key_history=None):
         self.guild_id = guild_id
-        self.key_id = int(key_id)
 
+        self.key = key
+        self.key_id = int(key_id)
+        self.key_history = key_history
         self.expires = expires or self._calculate_expire_time()
 
     def _calculate_expire_time(self):
@@ -133,11 +160,11 @@ class PremiumGuild(object):
     @property
     def time_upgraded(self):
         _keys = {k['key_id']: {'user_id': k['user_id'], 'timestamp': k['timestamp']} for k in self.key.usage}
-        return _keys.get(self.key_id, {}).get('timestamp', 0)
+        return _keys.get(self.key_id, {}).get('timestamp')
 
     @property
     def expired(self):
-        return self.expires < time.time()
+        return self.expires < time.time() if self.expires != -1 else False
 
     @property
     def guild_data(self):
@@ -155,14 +182,31 @@ class PremiumManager(object):
         self.keys_db = self.mbot.mongo.bot_data.premium_keys
         self.guilds_db = self.mbot.mongo.bot_data.premium_guilds
 
+    async def get_reserved_keys(self, server_id):
+        keys = []
+
+        async for document in self.keys_db.find({'reserved_uses': {'$elemMatch': {'server_id': server_id}}}):
+            keys.append(Key(**document))
+
+        return keys
+
+    async def get_key_history(self, server_id):
+        keys = []
+
+        async for document in self.keys_db.find({'usage': {'$elemMatch': {'server_id': server_id}}}):
+            keys.append(Key(**document))
+
+        return keys
+
     async def get_guild(self, server_id):
         doc = await self.guilds_db.find_one({'server_id': server_id})
 
         if doc:
             key, key_id = doc['key'].split('#')
             key_data = await self.keys_db.find_one({'key': key})
+            key_history = await self.get_key_history(server_id)
 
-            return PremiumGuild(server_id, Key(**key_data), key_id, doc['expires'])
+            return PremiumGuild(server_id, Key(**key_data), key_id, doc['expires'], key_history)
 
     async def generate_key(self, user_id=None, max_uses=1, note=None, authorised_users=None, key_type=None, ttl=None):
         app_info = await self.mbot.application_info()
