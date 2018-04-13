@@ -435,9 +435,9 @@ class mBot(discord.Client):
     async def on_channel_create(self, channel):
         '''Called whenever a channel is added to a server.'''
         log.debug(f'{sys._getframe().f_code.co_name} event triggered')
-        await self._update_bot_guilds(guilds=[channel.server])
 
         try:
+            await self._update_bot_guilds(guilds=[channel.server])
             plugins = await self.plugin_manager.plugins_for_server(channel.server.id)
         except AttributeError:
             return
@@ -448,9 +448,9 @@ class mBot(discord.Client):
     async def on_channel_update(self, before, after):
         '''Called whenever a channel is updated.'''
         log.debug(f'{sys._getframe().f_code.co_name} event triggered')
-        await self._update_bot_guilds(guilds=[after.server])
 
         try:
+            await self._update_bot_guilds(guilds=[after.server])
             plugins = await self.plugin_manager.plugins_for_server(before.server.id)
         except AttributeError:
             return
