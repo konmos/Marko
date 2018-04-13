@@ -43,8 +43,10 @@ class PluginManager(object):
         log.debug('loading plugins')
 
         for plugin in self.discover_plugins():
-            self.plugins.append(plugin(self.mbot))
-            log.debug(f'loaded {plugin.__class__.__name__} plugin')
+            p = plugin(self.mbot)
+            self.plugins.append(p)
+
+            log.debug(f'loaded {p.__class__.__name__} plugin')
 
     def load_commands(self):
         '''Load commands for all loaded plugins.'''
