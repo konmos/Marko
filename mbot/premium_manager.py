@@ -185,6 +185,32 @@ class PremiumManager(object):
         self.keys_db = self.mbot.mongo.bot_data.premium_keys
         self.guilds_db = self.mbot.mongo.bot_data.premium_guilds
 
+        self.mbot.loop.create_task(self.guild_watcher())
+
+    async def guild_watcher(self):
+        await self.mbot.wait_until_ready()
+
+        while not self.mbot.is_closed:
+            tstamp = time.time()
+
+            async for doc in self.guilds_db.find({'expires': {'$lte': tstamp}}):
+                server = self.mbot.get_server(doc['server_id'])
+
+                if server is not None:
+                    await self.mbot.send_message(
+                        server.owner,
+                        'Your premium guild has expired! :cry:'
+                    )
+
+                await self.guilds_db.delete_one({'server_id': doc['server_id']})
+
+                try:
+                    await self.mbot.change_nickname(server.me, None)
+                except Forbidden:
+                    pass
+
+            await asyncio.sleep(3600)
+
     async def get_reserved_keys(self, server_id):
         keys = []
 
