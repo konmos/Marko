@@ -2,7 +2,10 @@ import uuid
 import time
 import random
 import datetime
+
+import asyncio
 from dateutil.relativedelta import relativedelta
+from discord import Forbidden
 
 
 DEFAULT_KEY_NOTES = (
@@ -45,7 +48,7 @@ class Key(object):
         self.ttl = int(key_data.get('ttl') or -1)
         self.time_generated = key_data.get('time_generated') or time.time()
         self.generated_by = key_data.get('generated_by')
-        self.key_type = key_data.get('key_type') or 'pro-1'
+        self.key_type = key_data.get('key_type') or '1-month'
         self.authorised_users = key_data.get('authorised_users') or []
         self.max_uses = int(key_data.get('max_uses') or 1)
         self.key_note = key_data.get('key_note') or random.choice(DEFAULT_KEY_NOTES)
@@ -66,14 +69,7 @@ class Key(object):
 
     @property
     def readable_type(self):
-        key_type = self.key_type.split('-')
-
-        if key_type[1] == 'i':
-            upgrade_len = 'Lifetime'
-        else:
-            upgrade_len = key_type[1] + ('Months' if int(key_type[1]) > 1 else 'Month')
-
-        return f'Marko Premium - {upgrade_len}'
+        return f'Marko Premium - {self.key_type.replace("-", " ").title()}'
 
     @property
     def key_data(self):
@@ -149,8 +145,15 @@ class PremiumGuild(object):
         self.expires = expires or self._calculate_expire_time()
 
     def _calculate_expire_time(self):
-        upgrade_len = self.key.key_type[-1]
-        return calculate_expire_time(self.time_upgraded, int(upgrade_len)) if not upgrade_len == 'i' else -1
+        if self.key.key_type == 'lifetime':
+            return -1
+
+        upgrade = self.key.key_type.split('-')
+
+        if upgrade[1] in ['month', 'months']:
+            return calculate_expire_time(self.time_upgraded, months=int(upgrade[0]))
+        elif upgrade[1] in ['day', 'days']:
+            return calculate_expire_time(self.time_upgraded, days=int(upgrade[0]))
 
     @property
     def upgraded_by(self):
