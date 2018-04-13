@@ -14,6 +14,7 @@ handlers:
     class: logging.FileHandler
     formatter: simple
     filename: log\bot.log
+    encoding: utf-8
 
 root:
   level: DEBUG
