@@ -5,6 +5,8 @@ mbot:
 mongo:
   host: localhost
   port: 12345
+  username:
+  password:
 
 # Superusers are bot admins (usually the owners) and can
 # do things like reload plugins globally, etc...

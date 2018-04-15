@@ -13,7 +13,7 @@ class Config(object):
     instead of having to manually read the yaml config every time.
     '''
     _Mbot = namedtuple('Mbot', ('key', 'cmd_prefix'))
-    _Mongo = namedtuple('Mongo', ('host', 'port'))
+    _Mongo = namedtuple('Mongo', ('host', 'port', 'username', 'password'))
 
     def __init__(self, pth):
         self._path = pth
@@ -31,7 +31,9 @@ class Config(object):
 
         self.mongo = self._Mongo(
             self.yml['mongo']['host'],
-            self.yml['mongo']['port']
+            self.yml['mongo']['port'],
+            self.yml['mongo']['username'],
+            self.yml['mongo']['password']
         )
 
         self.superusers = [str(su) for su in self.yml['superusers']]

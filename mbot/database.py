@@ -11,7 +11,10 @@ class Mongo(object):
     access the database through the `mongo` attribute of the `mbot` class.
     '''
     def __init__(self, config):
-        self.client = MongoClient(config.mongo.host, config.mongo.port)
+        self.client = MongoClient(
+            config.mongo.host, config.mongo.port,
+            username=config.mongo.username, password=config.mongo.password
+        )
 
         self.bot_data = self.client.bot_data
 
