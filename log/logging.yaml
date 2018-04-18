@@ -11,11 +11,12 @@ handlers:
     formatter: simple
     stream: ext://sys.stdout
   file:
-    class: logging.FileHandler
+    class: logging.handlers.TimedRotatingFileHandler
     formatter: simple
-    filename: log\bot.log
+    filename: log\marko.log
     encoding: utf-8
+    when: midnight
 
 root:
   level: DEBUG
-  handlers: [console]
+  handlers: [file]

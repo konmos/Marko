@@ -1,7 +1,7 @@
 # Super secret bot specific files
 data/mongo/
 mbot.yaml
-*.log
+*.log.*
 *.db
 *.xcf
 mbot/notes.txt
