@@ -1,8 +1,5 @@
 from ..plugin import BasePlugin
 from ..command import command
-from ..premium_manager import KeyUnauthorised
-
-from discord import Forbidden
 
 
 DEFAULT_HELP = (
@@ -76,86 +73,3 @@ class Core(BasePlugin):
             await self.mbot.send_message(
                 message.channel, f':ok_hand: **Successfully reloaded all plugins!**'
             )
-
-    @command(regex='^upgrade (.*?)$', usage='upgrade <key>',
-             description='upgrade this guild to premium status with a key')
-    async def upgrade(self, message, key):
-        if not await self.mbot.premium_manager.is_key_valid(key):
-            return await self.mbot.send_message(
-                message.channel,
-                '**That key appears to be invalid!** :cry:'
-            )
-
-        key_obj = await self.mbot.premium_manager.get_key(key)
-
-        await self.mbot.send_message(
-            message.channel,
-            f'**Are you sure you want to upgrade *"{message.server.name}"* with this key?**\n'
-            f'```Key: {key_obj.key}\nNote: {key_obj.key_note}\nUses remaining: {key_obj.uses_remaining}\n'
-            f'Upgrade type: {key_obj.readable_type}```'
-        )
-
-        confirm_action = False
-
-        if message.server.me.permissions_in(message.channel).add_reactions:
-            m = await self.mbot.send_message(
-                message.channel, '*React to this message to let me know what to do...*'
-            )
-
-            await self.mbot.add_reaction(m, '\u2705')
-            await self.mbot.add_reaction(m, '\u274C')
-
-            ret = await self.mbot.wait_for_reaction(['\u2705', '\u274C'], message=m, user=message.author, timeout=60)
-
-            if ret is not None and str(ret[0].emoji) == '\u2705':
-                confirm_action = True
-        else:
-            await self.mbot.send_message(
-                message.channel, '*Please reply either "[y]es" or "[n]o" to let me know what to do...*'
-            )
-
-            ret = await self.mbot.wait_for_message(
-                author=message.author, timeout=60, check=lambda x: x.content[0] in ('n', 'y'), channel=message.channel
-            )
-
-            if ret is not None and ret.content.startswith('y'):
-                confirm_action = True
-
-        if confirm_action:
-            try:
-                await self.mbot.premium_manager.upgrade_guild(message.server.id, message.author.id, key)
-
-                try:
-                    await self.mbot.change_nickname(message.server.me, 'Marko Premium')
-                except Forbidden:
-                    pass
-
-                return await self.mbot.send_message(
-                    message.channel, f'{message.author.mention} **Guild upgraded!** :ok_hand:'
-                )
-            except KeyUnauthorised:
-                return await self.mbot.send_message(
-                    message.channel, f'{message.author.mention} **You cannot use that key!**'
-                )
-
-        return await self.mbot.send_message(
-            message.channel, f'{message.author.mention} **Guild could not be upgraded!** :cry:'
-        )
-
-    @command(su=True, regex='^keygen(?: (.*?))?$', description='generate an upgrade key')
-    async def keygen(self, message, args=None):
-        if args:
-            key_data = dict(x.strip().split('=') for x in args.split(','))
-        else:
-            key_data = {}
-
-        if key_data.get('authorised_users'):
-            key_data['authorised_users'] = key_data.get('authorised_users').split(';')
-
-        key = await self.mbot.premium_manager.generate_key(**key_data)
-
-        await self.mbot.send_message(
-            message.channel,
-            f'```Key: {key.key}\nType: {key.key_type}\nTTL: {key.ttl}\nMax uses: {key.max_uses}'
-            f'\nNote: {key.key_note}```'
-        )
