@@ -33,6 +33,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from .status import Status
 from .rpc import RPC, RPCServer
+from .premium_manager import PremiumManager
 from .plugin_manager import PluginManager
 from .database import Mongo
 
@@ -62,6 +63,8 @@ class mBot(discord.Client):
         self.plugin_manager = PluginManager(self)
         self.plugin_manager.load_plugins()
         self.plugin_manager.load_commands()
+
+        self.premium_manager = PremiumManager(self)
 
         self.rpc = RPC(self)
         self.rpc_server = None
