@@ -1,4 +1,5 @@
-discord.py[voice]
+discord.py
+pynacl
 youtube_dl
 beautifulsoup4
 imageio
