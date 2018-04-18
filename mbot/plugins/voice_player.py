@@ -314,7 +314,7 @@ class VoicePlayer(BasePlugin):
         await self.ensure_playlist_exists(message.server.id)
         await self.mbot.send_message(
             message.channel,
-            f'**:View the playlist for this server at https://markobot.xyz/playlist/{message.server.id}**'
+            f'**View the playlist for this server at https://markobot.xyz/playlist/{message.server.id}**'
         )
 
     async def queue_loop(self, message):
