@@ -73,3 +73,23 @@ class Core(BasePlugin):
             await self.mbot.send_message(
                 message.channel, f':ok_hand: **Successfully reloaded all plugins!**'
             )
+
+    @command(su=True, regex='^gec (.*?)$')
+    async def gec(self, message, commands):
+        await self.mbot.plugin_manager.global_enable_commands(commands.split(','))
+        await self.mbot.send_message(message.channel, 'Done')
+
+    @command(su=True, regex='^gdc (.*?)$')
+    async def gdc(self, message, commands):
+        await self.mbot.plugin_manager.global_disable_commands(commands.split(','))
+        await self.mbot.send_message(message.channel, 'Done')
+
+    @command(su=True, regex='^gep (.*?)$')
+    async def gep(self, message, plugins):
+        await self.mbot.plugin_manager.global_enable_plugins(plugins.split(','))
+        await self.mbot.send_message(message.channel, 'Done')
+
+    @command(su=True, regex='^gdp (.*?)$')
+    async def gdp(self, message, plugins):
+        await self.mbot.plugin_manager.global_disable_plugins(plugins.split(','))
+        await self.mbot.send_message(message.channel, 'Done')

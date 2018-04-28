@@ -1,6 +1,7 @@
 import sys
 import logging
 import importlib.util
+from collections import defaultdict
 
 import asyncio
 from discord import User
@@ -173,6 +174,12 @@ class PluginManager(object):
 
             return bool(ret)
 
+    async def global_disable_plugins(self, plugins_list):
+        return await self.mbot.mongo.config.update_many(
+            {},
+            {'$pull': {'plugins': {'name': {'$in': plugins_list}}}}
+        )
+
     async def enable_plugin(self, server_id, plugin):
         log.debug(f'enabling {plugin} plugin for server {server_id}')
 
@@ -196,15 +203,15 @@ class PluginManager(object):
 
             return bool(ret)
 
+    async def global_enable_plugins(self, plugins_list):
+        return await self.mbot.mongo.config.update_many(
+            {},
+            {'$addToSet': {'plugins': {'$each': [{'name': plugin, 'commands': []} for plugin in plugins_list]}}}
+        )
+
     def _plugin_for_cmd(self, command):
-        plugin_name = None
-
-        for plugin in self.plugins:
-            if command in [cmd.info['name'] for cmd in plugin.commands]:
-                plugin_name = plugin.__class__.__name__
-                break
-
-        return plugin_name
+        if self.commands.get(command):
+            return self.commands[command][2].info['plugin']
 
     async def enable_command(self, server_id, command, user_id=None):
         log.debug(f'enabling {command} command for server {server_id}')
@@ -240,6 +247,24 @@ class PluginManager(object):
 
             return bool(ret)
 
+    async def global_enable_commands(self, commands_list):
+        cmd_list = defaultdict(list)
+
+        for command in commands_list:
+            plugin = self._plugin_for_cmd(command)
+
+            if plugin:
+                cmd_list[plugin].append(command)
+
+        bulk = self.mbot.mongo.config.initialize_unordered_bulk_op()
+
+        for pl in cmd_list:
+            bulk.find({'plugins': {'$elemMatch': {'name': pl}}}).update(
+                {'$addToSet': {'plugins.$.commands': {'$each': cmd_list[pl]}}}
+            )
+
+        return await bulk.execute()
+
     async def disable_command(self, server_id, command, user_id=None):
         log.debug(f'disabling {command} command for server {server_id}')
 
@@ -268,3 +293,21 @@ class PluginManager(object):
             )
 
             return bool(ret)
+
+    async def global_disable_commands(self, commands_list):
+        cmd_list = defaultdict(list)
+
+        for command in commands_list:
+            plugin = self._plugin_for_cmd(command)
+
+            if plugin:
+                cmd_list[plugin].append(command)
+
+        bulk = self.mbot.mongo.config.initialize_unordered_bulk_op()
+
+        for p in cmd_list:
+            bulk.find({'plugins': {'$elemMatch': {'name': p}}}).update(
+                {'$pull': {'plugins.$.commands': {'$in': cmd_list[p]}}}
+            )
+
+        return await bulk.execute()
