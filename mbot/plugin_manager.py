@@ -62,11 +62,12 @@ class PluginManager(object):
 
     async def reload_plugins(self):
         '''
-        Reload all plugins and commands.
-        Any new plugins and commands are enabled by default.
-        Any plugins and commands that were removed are automatically disabled.
+        Reload all plugins and commands dynamically on a live system.
+        Returns dict of all plugins and commands that were either deleted or created.
         '''
         log.debug('attempting to reload plugins')
+
+        ret = defaultdict(list)
 
         old_plugins = [plugin.__class__.__name__ for plugin in self.plugins]
         old_commands = list(self.commands.keys())
@@ -99,14 +100,10 @@ class PluginManager(object):
         for plugin in diff_p:
             # Plugin was created.
             if plugin not in old_plugins:
-                for server in self.mbot.servers:
-                    await self.enable_plugin(server.id, plugin)
+                ret['new_plugins'].append(plugin)
             # Plugin was deleted.
             elif plugin not in new_plugins:
-                for server in self.mbot.servers:
-                    await self.disable_plugin(server.id, plugin)
-
-        log.debug('reloaded plugins')
+                ret['deleted_plugins'].append(plugin)
 
         # Now, handle command creations / deletions.
         diff_c = set(old_commands) ^ set(new_commands)
@@ -114,14 +111,13 @@ class PluginManager(object):
         for cmd in diff_c:
             # Command was created.
             if cmd not in old_commands:
-                for server in self.mbot.servers:
-                    await self.enable_command(server.id, cmd)
+                ret['new_commands'].append(cmd)
             # Command was deleted.
             elif cmd not in new_commands:
-                for server in self.mbot.servers:
-                    await self.disable_command(server.id, cmd)
+                ret['deleted_commands'].append(cmd)
 
-        log.debug('reloaded commands')
+        log.debug('done reloading plugins')
+        return ret
 
     async def plugins_for_server(self, server_id):
         log.debug(f'fetching plugins for server {server_id}')
