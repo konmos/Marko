@@ -5,6 +5,7 @@ from collections import defaultdict
 
 import asyncio
 from discord import User
+from pymongo.errors import PyMongoError
 
 from .plugins import plugins
 from .plugin_registry import PluginRegistry
@@ -167,12 +168,15 @@ class PluginManager(object):
             return False
 
         if plugin in [p.__class__.__name__ for p in self.plugins]:
-            ret = await self.mbot.mongo.config.update_one(
-                {'server_id': server_id},
-                {'$pull': {'plugins': {'name': plugin}}}
-            )
+            try:
+                ret = await self.mbot.mongo.config.bot_data.config.update_one(
+                    {'server_id': server_id},
+                    {'$pull': {'plugins': {'name': plugin}}}
+                )
 
-            return bool(ret)
+                return ret.modified_count > 0
+            except PyMongoError:
+                return False
 
     async def global_disable_plugins(self, plugins_list):
         return await self.mbot.mongo.config.update_many(
@@ -187,27 +191,26 @@ class PluginManager(object):
         if plugin == 'Core':
             return False
 
-        doc = await self.mbot.mongo.config.find_one(
-            {'server_id': server_id, 'plugins': {'$elemMatch': {'name': plugin}}}
-        )
-
-        if doc:
-            # Plugin is already enabled.
-            return False
-
         if plugin in [p.__class__.__name__ for p in self.plugins]:
-            ret = await self.mbot.mongo.config.update_one(
-                {'server_id': server_id},
+            try:
+                ret = await self.mbot.mongo.config.update_one(
+                    {'server_id': server_id, 'plugins.name': {'$ne': plugin}},
+                    {'$push': {'plugins': {'name': plugin, 'commands': []}}}
+                )
+
+                return ret.modified_count > 0
+            except PyMongoError:
+                return False
+
+    async def global_enable_plugins(self, plugins_list):
+        bulk = self.mbot.mongo.config.initialize_unordered_bulk_op()
+
+        for plugin in plugins_list:
+            bulk.find({'plugins.name': {'$ne': plugin}}).update(
                 {'$push': {'plugins': {'name': plugin, 'commands': []}}}
             )
 
-            return bool(ret)
-
-    async def global_enable_plugins(self, plugins_list):
-        return await self.mbot.mongo.config.update_many(
-            {},
-            {'$addToSet': {'plugins': {'$each': [{'name': plugin, 'commands': []} for plugin in plugins_list]}}}
-        )
+        return await bulk.execute()
 
     def _plugin_for_cmd(self, command):
         if self.commands.get(command):
@@ -230,22 +233,15 @@ class PluginManager(object):
             if self.commands[command][2].info['perms'][0]:
                 return False
 
-        doc = await self.mbot.mongo.config.find_one(
-                {'server_id': server_id, 'plugins': {'$elemMatch': {'name': plugin_name}}}
-            )
-
-        commands = await self.commands_for_server(server_id)
-        # Command is already enabled.
-        if command in commands:
-            return False
-
-        if doc is not None:
+        try:
             ret = await self.mbot.mongo.config.update_one(
                 {'server_id': server_id, 'plugins': {'$elemMatch': {'name': plugin_name}}},
-                {'$push': {'plugins.$.commands': command}}
+                {'$addToSet': {'plugins.$.commands': command}}
             )
 
-            return bool(ret)
+            return ret.modified_count > 0
+        except PyMongoError:
+            return False
 
     async def global_enable_commands(self, commands_list):
         cmd_list = defaultdict(list)
@@ -282,17 +278,15 @@ class PluginManager(object):
             if self.commands[command][2].info['perms'][0]:
                 return False
 
-        doc = await self.mbot.mongo.config.find_one(
-                {'server_id': server_id, 'plugins': {'$elemMatch': {'name': plugin_name}}}
-            )
-
-        if doc is not None:
+        try:
             ret = await self.mbot.mongo.config.update_one(
                 {'server_id': server_id, 'plugins': {'$elemMatch': {'name': plugin_name}}},
                 {'$pull': {'plugins.$.commands': command}}
             )
 
-            return bool(ret)
+            return ret.modified_count > 0
+        except PyMongoError:
+            return False
 
     async def global_disable_commands(self, commands_list):
         cmd_list = defaultdict(list)

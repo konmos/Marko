@@ -5,6 +5,7 @@ import zerorpc
 from functools import wraps
 from pymongo import MongoClient
 from requests_oauthlib import OAuth2Session
+from pymongo.errors import PyMongoError
 from flask import Flask, render_template, session, redirect, request, flash, abort, jsonify
 
 # CONFIG
@@ -42,11 +43,13 @@ def get_playlist(server_id):
 
 
 def mongo_enable_cmd(server_id, cmd):
-    success, rpc = [], get_rpc_client()
+    rpc = get_rpc_client()
 
     plugin = rpc.plugin_for_command(cmd)
     all_commands = rpc.commands_for_plugin(plugin)
-    enabled_commands = plugins_for_server(session.get('active_server')).get(plugin, [])
+
+    if cmd not in all_commands:
+        return False
 
     # Skip Core plugin.
     if (plugin == 'Core' and not rpc.is_user_su(session.get('user')['id'])) or not plugin:
@@ -55,20 +58,15 @@ def mongo_enable_cmd(server_id, cmd):
     if all_commands[cmd]['perms'][0] and not rpc.is_user_su(session.get('user')['id']):
         return False
 
-    if not (cmd in all_commands and cmd not in enabled_commands):
-        return False
-
-    doc = db.bot_data.config.find_one(
-        {'server_id': server_id, 'plugins': {'$elemMatch': {'name': plugin}}}
-    )
-
-    if doc:
+    try:
         ret = db.bot_data.config.update_one(
             {'server_id': server_id, 'plugins': {'$elemMatch': {'name': plugin}}},
             {'$addToSet': {'plugins.$.commands': cmd}}
         )
 
-        return bool(ret)
+        return ret.modified_count > 0
+    except PyMongoError:
+        return False
 
 
 def mongo_disable_cmd(server_id, cmd):
@@ -76,7 +74,9 @@ def mongo_disable_cmd(server_id, cmd):
 
     plugin = rpc.plugin_for_command(cmd)
     all_commands = rpc.commands_for_plugin(plugin)
-    enabled_commands = plugins_for_server(session.get('active_server')).get(plugin, [])
+
+    if cmd not in all_commands:
+        return False
 
     # Skip Core plugin.
     if (plugin == 'Core' and not rpc.is_user_su(session.get('user')['id'])) or not plugin:
@@ -85,20 +85,15 @@ def mongo_disable_cmd(server_id, cmd):
     if all_commands[cmd]['perms'][0] and not rpc.is_user_su(session.get('user')['id']):
         return False
 
-    if not (cmd in all_commands and cmd in enabled_commands):
-        return False
-
-    doc = db.bot_data.config.find_one(
-        {'server_id': server_id, 'plugins': {'$elemMatch': {'name': plugin}}}
-    )
-
-    if doc:
+    try:
         ret = db.bot_data.config.update_one(
             {'server_id': server_id, 'plugins': {'$elemMatch': {'name': plugin}}},
             {'$pull': {'plugins.$.commands': cmd}}
         )
 
-        return bool(ret)
+        return ret.modified_count > 0
+    except PyMongoError:
+        return False
 
 
 def get_server_config(server_id):
@@ -110,12 +105,15 @@ def get_guild_data(guild_id):
 
 
 def set_prefix(server_id, prefix):
-    ret = db.bot_data.config.update_one(
-        {'server_id': server_id},
-        {'$set': {'prefix': prefix}}
-    )
+    try:
+        ret = db.bot_data.config.update_one(
+            {'server_id': server_id},
+            {'$set': {'prefix': prefix}}
+        )
 
-    return bool(ret)
+        return ret.modified_count > 0
+    except PyMongoError:
+        return False
 
 
 def mongo_enable_plugin(server_id, plugin):
@@ -124,20 +122,15 @@ def mongo_enable_plugin(server_id, plugin):
     if plugin == 'Core' or plugin not in rpc.installed_plugins():
         return
 
-    doc = db.bot_data.config.find_one(
-        {'server_id': server_id, 'plugins': {'$elemMatch': {'name': plugin}}}
-    )
+    try:
+        ret = db.bot_data.config.update_one(
+            {'server_id': server_id, 'plugins.name': {'$ne': plugin}},
+            {'$push': {'plugins': {'name': plugin, 'commands': []}}}
+        )
 
-    if doc:
-        # Plugin is already enabled.
+        return ret.modified_count > 0
+    except PyMongoError:
         return False
-
-    ret = db.bot_data.config.update_one(
-        {'server_id': server_id},
-        {'$push': {'plugins': {'name': plugin, 'commands': []}}}
-    )
-
-    return bool(ret)
 
 
 def mongo_disable_plugin(server_id, plugin):
@@ -146,12 +139,15 @@ def mongo_disable_plugin(server_id, plugin):
     if plugin == 'Core' or plugin not in rpc.installed_plugins():
         return
 
-    ret = db.bot_data.config.update_one(
-        {'server_id': server_id},
-        {'$pull': {'plugins': {'name': plugin}}}
-    )
+    try:
+        ret = db.bot_data.config.update_one(
+            {'server_id': server_id},
+            {'$pull': {'plugins': {'name': plugin}}}
+        )
 
-    return bool(ret)
+        return ret.modified_count > 0
+    except PyMongoError:
+        return False
 
 
 def plugins_for_server(server_id):
