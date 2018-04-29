@@ -99,3 +99,7 @@ class Core(BasePlugin):
     async def gdp(self, message, plugins):
         await self.mbot.plugin_manager.global_disable_plugins(plugins.split(','))
         await self.mbot.send_message(message.channel, 'Done')
+
+    @command(su=True, regex='^su-ayy+$', name='su-ayy')
+    async def su_ayy(self, message):
+        await self.mbot.send_message(message.channel, '*su-lmao*')
