@@ -193,14 +193,17 @@ class PluginManager(object):
                 return False
 
     async def global_enable_plugins(self, plugins_list):
-        bulk = self.mbot.mongo.config.initialize_unordered_bulk_op()
+        filtered = [i for i in filter((lambda x: x in [p.__class__.__name__ for p in self.plugins]), plugins_list)]
 
-        for plugin in plugins_list:
-            bulk.find({'plugins.name': {'$ne': plugin}}).update(
-                {'$push': {'plugins': {'name': plugin, 'commands': []}}}
-            )
+        if filtered:
+            bulk = self.mbot.mongo.config.initialize_unordered_bulk_op()
 
-        return await bulk.execute()
+            for plugin in filtered:
+                bulk.find({'plugins.name': {'$ne': plugin}}).update(
+                    {'$push': {'plugins': {'name': plugin, 'commands': []}}}
+                )
+
+            return await bulk.execute()
 
     def _plugin_for_cmd(self, command):
         if self.commands.get(command):
