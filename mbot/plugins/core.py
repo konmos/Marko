@@ -96,7 +96,7 @@ class Core(BasePlugin):
         )
 
         if disabled_plugins:
-            msg += f'\n**Disabled Plugins:**\n\n{" ".join(disabled_plugins)}'
+            msg += f'\n**Disabled Plugins:**\n{" ".join(disabled_plugins)}\n'
 
         if disabled_commands:
             msg += f'\n**Disabled Commands:**\n{" ".join(disabled_commands)}'
