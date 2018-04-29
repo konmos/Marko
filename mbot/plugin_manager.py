@@ -158,7 +158,7 @@ class PluginManager(object):
 
         if plugin in [p.__class__.__name__ for p in self.plugins]:
             try:
-                ret = await self.mbot.mongo.config.bot_data.config.update_one(
+                ret = await self.mbot.mongo.config.update_one(
                     {'server_id': server_id},
                     {'$pull': {'plugins': {'name': plugin}}}
                 )
