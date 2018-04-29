@@ -3,7 +3,6 @@ import logging
 import importlib.util
 from collections import defaultdict
 
-import asyncio
 from discord import User
 from pymongo.errors import PyMongoError
 
@@ -22,11 +21,6 @@ class PluginManager(object):
         # Commands should be accessed either via the plugin or (better)
         # using the `commands_for_server` method.
         self.commands = {}
-
-        # Primitive lock for the plugin manager. This is not used directly....
-        # However, all plugins that use the plugin manager to enabled, disable,
-        # load, and unload plugins should use this.
-        self.lock = asyncio.Lock()
 
     @staticmethod
     def discover_plugins():

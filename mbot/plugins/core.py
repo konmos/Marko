@@ -68,17 +68,16 @@ class Core(BasePlugin):
 
     @command(su=True, description='reload all plugins and commands globally', usage='reload')
     async def reload(self, message):
-        with await self.mbot.plugin_manager.lock:
-            ret = await self.mbot.plugin_manager.reload_plugins()
+        ret = await self.mbot.plugin_manager.reload_plugins()
 
-            await self.mbot.send_message(
-                message.channel,
-                f':ok_hand: **Successfully reloaded all plugins!**\n\n'
-                f'**New Plugins**\n```{ret["new_plugins"]}```\n'
-                f'**Deleted Plugins**\n```{ret["deleted_plugins"]}```\n'
-                f'**New Commands**\n```{ret["new_commands"]}```\n'
-                f'**Deleted Commands**\n```{ret["deleted_commands"]}```\n'
-            )
+        await self.mbot.send_message(
+            message.channel,
+            f':ok_hand: **Successfully reloaded all plugins!**\n\n'
+            f'**New Plugins**\n```{ret["new_plugins"]}```\n'
+            f'**Deleted Plugins**\n```{ret["deleted_plugins"]}```\n'
+            f'**New Commands**\n```{ret["new_commands"]}```\n'
+            f'**Deleted Commands**\n```{ret["deleted_commands"]}```\n'
+        )
 
     @command(su=True, regex='^gec (.*?)$')
     async def gec(self, message, commands):

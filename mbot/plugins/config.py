@@ -255,51 +255,49 @@ class ConfigPlugin(BasePlugin):
 
     @command(regex='^enable$', name='enable', perms=0x8, description='enable a plugin or command', usage='enable <ext>')
     async def enable_ext(self, message):
-        with await self.mbot.plugin_manager.lock:
-            resp = '''*Please enter a number corresponding to the type of extension you want to enable...*
-            ```
-            [1] Plugin
-            [2] Command```'''.strip()
+        resp = '''*Please enter a number corresponding to the type of extension you want to enable...*
+        ```
+        [1] Plugin
+        [2] Command```'''.strip()
 
-            msg = await self.mbot.send_message(message.channel, resp)
+        msg = await self.mbot.send_message(message.channel, resp)
 
-            choice = await self.mbot.wait_for_message(
-                author=message.author, channel=message.channel,
-                timeout=30, check=lambda msg: msg.content.isdigit()
-            )
+        choice = await self.mbot.wait_for_message(
+            author=message.author, channel=message.channel,
+            timeout=30, check=lambda msg: msg.content.isdigit()
+        )
 
-            if choice.content in ['1', '2']:
-                if choice.content == '1':
-                    await self.enable_plugin(message)
-                else:
-                    await self.enable_cmd(message)
+        if choice.content in ['1', '2']:
+            if choice.content == '1':
+                await self.enable_plugin(message)
             else:
-                await self.mbot.send_message(message.channel, f'{message.author.mention} *Try again...* :cry:')
+                await self.enable_cmd(message)
+        else:
+            await self.mbot.send_message(message.channel, f'{message.author.mention} *Try again...* :cry:')
 
-            await self.mbot.delete_message(msg)
+        await self.mbot.delete_message(msg)
 
     @command(regex='^disable$', name='disable', perms=0x8, description='disable a plugin or command',
              usage='disable <ext>')
     async def disable_ext(self, message):
-        with await self.mbot.plugin_manager.lock:
-            resp = '''*Please enter a number corresponding to the type of extension you want to disable...*
-                ```
-                [1] Plugin
-                [2] Command```'''.strip()
+        resp = '''*Please enter a number corresponding to the type of extension you want to disable...*
+            ```
+            [1] Plugin
+            [2] Command```'''.strip()
 
-            msg = await self.mbot.send_message(message.channel, resp)
+        msg = await self.mbot.send_message(message.channel, resp)
 
-            choice = await self.mbot.wait_for_message(
-                author=message.author, channel=message.channel,
-                timeout=30, check=lambda msg: msg.content.isdigit()
-            )
+        choice = await self.mbot.wait_for_message(
+            author=message.author, channel=message.channel,
+            timeout=30, check=lambda msg: msg.content.isdigit()
+        )
 
-            if choice.content in ['1', '2']:
-                if choice.content == '1':
-                    await self.disable_plugin(message)
-                else:
-                    await self.disable_cmd(message)
+        if choice.content in ['1', '2']:
+            if choice.content == '1':
+                await self.disable_plugin(message)
             else:
-                await self.mbot.send_message(message.channel, f'{message.author.mention} *Try again...* :cry:')
+                await self.disable_cmd(message)
+        else:
+            await self.mbot.send_message(message.channel, f'{message.author.mention} *Try again...* :cry:')
 
-            await self.mbot.delete_message(msg)
+        await self.mbot.delete_message(msg)
