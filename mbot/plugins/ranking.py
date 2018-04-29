@@ -161,6 +161,10 @@ class Ranking(BasePlugin):
             font_small = ImageFont.truetype(os.path.join('data', 'DejaVuSans.ttf'), 12)
 
         bckg = Image.open(bckg_buffer)
+
+        if bckg.mode != 'RGB':
+            bckg = bckg.convert(mode='RGB')
+
         bckg = bckg.resize((310, 120), Image.ANTIALIAS)
         draw = ImageDraw.Draw(bckg)
 
