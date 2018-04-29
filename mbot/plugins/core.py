@@ -87,6 +87,20 @@ class Core(BasePlugin):
 
             msg += '\n'
 
+        disabled_plugins = set([p.__class__.__name__ for p in self.mbot.plugin_manager.plugins]).difference(
+            set([x for x in enabled_plugins])
+        )
+
+        disabled_commands = set([c for c in self.mbot.plugin_manager.commands]).difference(
+            set([x for x in commands])
+        )
+
+        if disabled_plugins:
+            msg += f'\n**Disabled Plugins:**\n\n{" ".join(disabled_plugins)}'
+
+        if disabled_commands:
+            msg += f'\n**Disabled Commands:**\n{" ".join(disabled_commands)}'
+
         await self.mbot.send_message(message.channel, msg)
 
     @command(su=True, description='reload all plugins and commands globally', usage='reload')
