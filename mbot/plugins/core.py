@@ -4,7 +4,15 @@ from ..command import command
 
 DEFAULT_HELP = (
     'For help on individual commands use: `{prefix}help <command>`\n'
-    '**To view a list of the currently enabled commands use:** `{prefix}commands`'
+    'To find out more about a plugin use: `{prefix}plugin <plugin>`\n'
+    '**To view all plugins and commands use:** `{prefix}commands`\n\n'
+    '**__Understanding Command Usages__**\n\n'
+    '`text without brackets/braces/parentheses` - items you must type as shown\n'
+    '`<text inside angle brackets>` - placeholder for which you must supply a value\n'
+    '`[text inside square brackets]` - optional items\n'
+    '`(text inside parentheses)` - set of required items; choose one\n'
+    '`vertical bar (|)` - separator for mutually exclusive items; choose one\n'
+    '`ellipsis (…)` - items that can be repeated'
 )
 
 
@@ -15,6 +23,21 @@ CMD_HELP = (
 
 
 class Core(BasePlugin):
+    @command(regex='^plugin (.*?)$', name='plugin', usage='plugin (<plugin>)',
+             description='display more info on a certain plugin')
+    async def plugin_help(self, message, plugin):
+        plugins = await self.mbot.plugin_manager.plugins_for_server(message.server.id)
+
+        if not plugins.get(plugin):
+            return await self.mbot.send_message(message.channel, '**I could not find that plugin...** :cry:')
+
+        plugin_obj = plugins.get(plugin)
+
+        await self.mbot.send_message(
+            message.channel,
+            f'**{plugin}**\n\n{plugin_obj.info}'
+        )
+
     @command(regex='^help(?: (.*?))?$', usage='help <command>', description='displays the help page')
     async def help(self, message, cmd=None):
         server_cfg = await self.mbot.mongo.config.find_one({'server_id': message.server.id})

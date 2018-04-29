@@ -17,6 +17,8 @@ class BasePlugin(object, metaclass=PluginRegistry):
 
                 self.commands.append(member[1])
 
+        self.info = 'placeholder text CHANGEME'
+
     async def on_ready(self):
         '''Called when the client is done preparing the data received from Discord.'''
 
