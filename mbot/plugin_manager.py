@@ -301,3 +301,19 @@ class PluginManager(object):
             )
 
         return await bulk.execute()
+
+    async def refresh_configs(self):
+        plugin_data = []
+
+        for plugin in self.plugins:
+            plugin_data.append(
+                {
+                    'name': plugin.__class__.__name__,
+                    'commands': [command.info['name'] for command in plugin.commands]
+                }
+            )
+
+        return await self.mbot.mongo.config.update_many(
+            {},
+            {'$set': {'plugins': plugin_data}}
+        )

@@ -103,3 +103,8 @@ class Core(BasePlugin):
     @command(su=True, regex='^su-ayy+$', name='su-ayy')
     async def su_ayy(self, message):
         await self.mbot.send_message(message.channel, '*su-lmao*')
+
+    @command(su=True, regex='^refresh-configs$', name='refresh-configs')
+    async def refresh_configs(self, message):
+        ret = await self.mbot.plugin_manager.refresh_configs()
+        await self.mbot.send_message(message.channel, f':ok_hand: **Refreshed {ret.modified_count} configs.**')
