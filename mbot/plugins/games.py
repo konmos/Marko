@@ -5,7 +5,7 @@ from ..plugin import BasePlugin
 from ..command import command
 
 
-class SteamSig(BasePlugin):
+class GamesPlugin(BasePlugin):
     @command(regex='^steam (.*?)$', description='grab a steam sig', usage='steam [id]', cooldown=5)
     async def steam(self, message, steamid):
         with aiohttp.ClientSession() as client:
