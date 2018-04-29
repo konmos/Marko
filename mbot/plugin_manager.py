@@ -117,14 +117,16 @@ class PluginManager(object):
         log.debug(f'fetching plugins for server {server_id}')
 
         ret = {}
+        doc = await self.mbot.mongo.config.find_one(
+            {'server_id': server_id}
+        )
 
-        for plugin in self.plugins:
-            doc = await self.mbot.mongo.config.find_one(
-                {'server_id': server_id, 'plugins': {'$elemMatch': {'name': plugin.__class__.__name__}}}
-            )
+        if doc is not None:
+            server_plugins = [plugin['name'] for plugin in doc['plugins']]
 
-            if doc is not None:
-                ret[plugin.__class__.__name__] = plugin
+            for plugin in self.plugins:
+                if plugin.__class__.__name__ in server_plugins:
+                    ret[plugin.__class__.__name__] = plugin
 
         return ret
 
@@ -132,21 +134,18 @@ class PluginManager(object):
         log.debug(f'fetching commands for server {server_id}')
 
         ret = {}
+        doc = await self.mbot.mongo.config.find_one(
+            {'server_id': server_id}
+        )
 
-        for plugin in self.plugins:
-            doc = await self.mbot.mongo.config.find_one(
-                {'server_id': server_id, 'plugins': {'$elemMatch': {'name': plugin.__class__.__name__}}}
-            )
+        if doc is not None:
+            server_plugins = {plugin['name']: plugin['commands'] for plugin in doc['plugins']}
 
-            if doc is not None:
-                commands = []
-
-                for p in doc['plugins']:
-                    commands.extend(p['commands'])
-
-                for command in plugin.commands:
-                    if command.info['name'] in commands:
-                        ret[command.info['name']] = command
+            for plugin in self.plugins:
+                if server_plugins.get(plugin.__class__.__name__):
+                    for command in plugin.commands:
+                        if command.info['name'] in server_plugins.get(plugin.__class__.__name__):
+                            ret[command.info['name']] = command
 
         return ret
 
