@@ -23,7 +23,6 @@ import struct
 import signal
 import logging
 from collections import defaultdict
-from difflib import SequenceMatcher as SM
 
 import gevent
 import aiohttp
@@ -358,16 +357,15 @@ class mBot(discord.Client):
                         matched_cmd = command
                         break  # Ignore possible name conflicts... Commands should have unique names!
                 else:
-                    # No command was found... Suggest possible fixes.
-                    fixes = [
-                        (SM(None, message.content, x).ratio(), x) for x in commands.keys()
-                        ]
-
-                    best_candidate = max(fixes, key=lambda x: x[0])[1]
-
-                    await self.send_message(
-                        message.channel, f'*I couldn\'t understand that... How about running **{best_candidate}***?'
-                    )
+                    # No command was found... Reply with a help message if the command exists.
+                    c = self.plugin_manager.command_exists(message.content)
+                    if c:
+                        await self.send_message(
+                            message.channel,
+                            f'*I couldn\'t understand that...\n'
+                            f'If you wanted to run **{c}** something went wrong...* :cry:\n'
+                            f'For help try running `{cfg["prefix"]}help {c}`.'
+                        )
 
         plugins = await self.plugin_manager.plugins_for_server(message.server.id)
 

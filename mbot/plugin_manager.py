@@ -208,6 +208,18 @@ class PluginManager(object):
         if self.commands.get(command):
             return self.commands[command][2].info['plugin']
 
+    def command_exists(self, command_string):
+        '''
+        Utility function to check if a command exists given the entire command string.
+        This is useful if we do not know the name of the command. If the name is known, it might
+        be better to use `_plugin_for_cmd` instead.
+        '''
+        matches = [x for x in self.commands if command_string.startswith(x)]
+
+        if matches:
+            # We return the longest matching command
+            return max(matches, key=len)
+
     async def enable_command(self, server_id, command, user_id=None):
         log.debug(f'enabling {command} command for server {server_id}')
 
