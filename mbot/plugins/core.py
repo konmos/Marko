@@ -1,3 +1,5 @@
+from textwrap import dedent
+
 from ..plugin import BasePlugin
 from ..command import command
 
@@ -18,7 +20,8 @@ DEFAULT_HELP = (
 
 CMD_HELP = (
     '**{name}** - *{description}*\n\n'
-    'Usage: `{prefix}{usage}`'
+    'Usage: `{prefix}{usage}`\n\n'
+    '{detailed_info}'
 )
 
 
@@ -49,11 +52,19 @@ class Core(BasePlugin):
             ))
         else:
             if cmd in commands:
+                detailed_info = dedent(
+                    getattr(self.mbot.plugin_manager.commands[cmd][2], 'detailed_info', '').format(
+                        command=server_cfg['prefix'] + cmd
+                    )
+                )
+
                 await self.mbot.send_message(message.channel, CMD_HELP.format(
-                    name = cmd,
-                    description = self.mbot.plugin_manager.commands[cmd][0],
-                    prefix = server_cfg['prefix'],
-                    usage = self.mbot.plugin_manager.commands[cmd][1]))
+                    name=cmd,
+                    description=self.mbot.plugin_manager.commands[cmd][0],
+                    prefix=server_cfg['prefix'],
+                    usage=self.mbot.plugin_manager.commands[cmd][1],
+                    detailed_info=detailed_info
+                ))
             else:
                 await self.mbot.send_message(message.channel, '*I did not recognize that command...*')
 
