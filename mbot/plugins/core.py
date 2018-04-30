@@ -150,7 +150,7 @@ class Core(BasePlugin):
     async def su_ayy(self, message):
         await self.mbot.send_message(message.channel, '*su-lmao*')
 
-    @command(su=True, regex='^refresh-configs$', name='refresh-configs')
-    async def refresh_configs(self, message):
+    @command(su=True, regex='^reset-configs$', name='reset-configs')
+    async def reset_configs(self, message):
         ret = await self.mbot.plugin_manager.refresh_configs()
         await self.mbot.send_message(message.channel, f':ok_hand: **Refreshed {ret.modified_count} configs.**')
