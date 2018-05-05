@@ -569,7 +569,7 @@ class mBot(discord.Client):
     async def on_server_remove(self, server):
         '''Called when a server is removed from the client.'''
         log.debug(f'{sys._getframe().f_code.co_name} event triggered')
-        await self._delete_bot_guild(server)
+        await self._delete_bot_guild(server.id)
 
         plugins = await self.plugin_manager.plugins_for_server(server.id)
 
