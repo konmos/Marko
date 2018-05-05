@@ -22,12 +22,12 @@ import time
 import struct
 import signal
 import logging
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 
 import gevent
 import aiohttp
 import discord
-from discord import Permissions
+from discord import Permissions, Forbidden
 from concurrent.futures import ThreadPoolExecutor
 
 from .status import Status
@@ -73,6 +73,62 @@ class mBot(discord.Client):
         # recent_commands:
         #   {user_id: [cmd_timestamp, ...], ...}
         self.recent_commands = defaultdict(list)
+
+    async def wait_for_input(self, message, text, timeout=20, check=None, cleanup=True):
+        '''
+        Utility function which waits for input from a user who sent a message, in the channel
+        of that message.
+        '''
+        text += (
+            f'\n\n*this times out after {timeout} second(s); '
+            'you can also type **exit** or **cancel** to ignore this*'
+        )
+
+        m = await self.send_message(message.channel, text)
+
+        def check_input(msg):
+            if check is not None:
+                return check(msg) or msg.content in ['cancel', 'exit']
+
+            return True
+
+        resp = await self.wait_for_message(
+            author=message.author, channel=message.channel,
+            timeout=timeout, check=check_input
+        )
+
+        if cleanup:
+            await self.delete_message(m)
+
+            try:
+                await self.delete_message(resp)
+            except (Forbidden, AttributeError):
+                pass
+
+        if resp.content in ['cancel', 'exit']:
+            return None
+
+        return resp
+
+    async def option_selector(self, message, header, options, cleanup=True):
+        '''
+        Utility function to allow selection of options in discord text chat.
+        :param header: The message to display at the top.
+        :param options: Dictionary of the options; the key is the internal option name/value
+            and items represent the readable option text that will be displayed.
+        '''
+        string = f'{header}\n\n```'
+        options = OrderedDict(sorted(options.items(), key=lambda t: t[0]))
+        option_map = [(x, option) for x, option in enumerate(options)]
+
+        for x, option in option_map:
+            string += f'[{x}] {options[option]}\n'
+
+        string += '```'
+        choice = await self.wait_for_input(message, string, check=lambda msg: msg.content.isdigit(), cleanup=cleanup)
+
+        if choice.content in [str(i[0]) for i in option_map]:
+            return options[dict(option_map)[int(choice.content)]]
 
     def perms_check(self, user, channel=None, required_perms=None, su=False):
         if user.id is None:

@@ -126,7 +126,7 @@ class ConfigPlugin(BasePlugin):
 
     @command(description='unignore the current channel', usage='unignore', perms=0x8)
     async def unignore(self, message):
-        ret =  await self._unignore_channel(message.server.id, message.channel.id)
+        ret = await self._unignore_channel(message.server.id, message.channel.id)
 
         if ret:
             await self.mbot.send_message(
@@ -138,18 +138,12 @@ class ConfigPlugin(BasePlugin):
             )
 
     async def disable_plugin(self, message):
-        m = await self.mbot.send_message(
-            message.channel,
-            '*Enter the name of the plugin(s) you want to disable (separated by a comma)...*'
+        plugin = await self.mbot.wait_for_input(
+            message,
+            '**Enter the name of the plugin(s) you want to disable (separated by a comma);**'
         )
 
-        plugin = await self.mbot.wait_for_message(
-            author=message.author, channel=message.channel, timeout=30
-        )
-
-        if plugin.content:
-            await self.mbot.delete_message(m)
-
+        if plugin and plugin.content:
             for p in plugin.content.split(','):
                 p = p.strip()
 
@@ -165,20 +159,16 @@ class ConfigPlugin(BasePlugin):
                     )
 
                 await asyncio.sleep(1)
+        else:
+            await self.mbot.send_message(message.channel, f'{message.author.mention} **Exiting config menu...** :cry:')
 
     async def enable_plugin(self, message):
-        m = await self.mbot.send_message(
-            message.channel,
-            '*Enter the name of the plugin(s) you want to enable (separated by a comma)...*'
+        plugin = await self.mbot.wait_for_input(
+            message,
+            '**Enter the name of the plugin(s) you want to enable (separated by a comma);**'
         )
 
-        plugin = await self.mbot.wait_for_message(
-            author=message.author, channel=message.channel, timeout=30
-        )
-
-        if plugin.content:
-            await self.mbot.delete_message(m)
-
+        if plugin and plugin.content:
             for p in plugin.content.split(','):
                 p = p.strip()
 
@@ -194,20 +184,16 @@ class ConfigPlugin(BasePlugin):
                     )
 
                 await asyncio.sleep(1)
+        else:
+            await self.mbot.send_message(message.channel, f'{message.author.mention} **Exiting config menu...** :cry:')
 
     async def enable_cmd(self, message):
-        m = await self.mbot.send_message(
-            message.channel,
-            '*Enter the name of the command(s) you want to enable (separated by a comma)...*'
+        cmd = await self.mbot.wait_for_input(
+            message,
+            '**Enter the name of the command(s) you want to enable (separated by a comma);**'
         )
 
-        cmd = await self.mbot.wait_for_message(
-            author=message.author, channel=message.channel, timeout=30
-        )
-
-        if cmd.content:
-            await self.mbot.delete_message(m)
-
+        if cmd and cmd.content:
             for c in cmd.content.split(','):
                 c = c.strip()
 
@@ -223,20 +209,16 @@ class ConfigPlugin(BasePlugin):
                     )
 
                 await asyncio.sleep(1)
+        else:
+            await self.mbot.send_message(message.channel, f'{message.author.mention} **Exiting config menu...** :cry:')
 
     async def disable_cmd(self, message):
-        m = await self.mbot.send_message(
-            message.channel,
-            '*Enter the name of the command(s) you want to disable (separated by a comma)...*'
+        cmd = await self.mbot.wait_for_input(
+            message,
+            '**Enter the name of the command(s) you want to disable (separated by a comma);**'
         )
 
-        cmd = await self.mbot.wait_for_message(
-            author=message.author, channel=message.channel, timeout=30
-        )
-
-        if cmd.content:
-            await self.mbot.delete_message(m)
-
+        if cmd and cmd.content:
             for c in cmd.content.split(','):
                 c = c.strip()
 
@@ -252,52 +234,38 @@ class ConfigPlugin(BasePlugin):
                     )
 
                 await asyncio.sleep(1)
+        else:
+            await self.mbot.send_message(message.channel, f'{message.author.mention} **Exiting config menu...** :cry:')
 
     @command(regex='^enable$', name='enable', perms=0x8, description='enable a plugin or command', usage='enable <ext>')
     async def enable_ext(self, message):
-        resp = '''*Please enter a number corresponding to the type of extension you want to enable...*
-        ```
-        [1] Plugin
-        [2] Command```'''.strip()
-
-        msg = await self.mbot.send_message(message.channel, resp)
-
-        choice = await self.mbot.wait_for_message(
-            author=message.author, channel=message.channel,
-            timeout=30, check=lambda msg: msg.content.isdigit()
+        option = await self.mbot.option_selector(
+            message,
+            '**Please enter a number corresponding to the type of extension you want to enable;**',
+            {'plugin': 'Plugin', 'cmd': 'Command'}
         )
 
-        if choice.content in ['1', '2']:
-            if choice.content == '1':
+        if option is not None:
+            if option == 'plugin':
                 await self.enable_plugin(message)
             else:
                 await self.enable_cmd(message)
         else:
-            await self.mbot.send_message(message.channel, f'{message.author.mention} *Try again...* :cry:')
-
-        await self.mbot.delete_message(msg)
+            await self.mbot.send_message(message.channel, f'{message.author.mention} **Exiting config menu...** :cry:')
 
     @command(regex='^disable$', name='disable', perms=0x8, description='disable a plugin or command',
              usage='disable <ext>')
     async def disable_ext(self, message):
-        resp = '''*Please enter a number corresponding to the type of extension you want to disable...*
-            ```
-            [1] Plugin
-            [2] Command```'''.strip()
-
-        msg = await self.mbot.send_message(message.channel, resp)
-
-        choice = await self.mbot.wait_for_message(
-            author=message.author, channel=message.channel,
-            timeout=30, check=lambda msg: msg.content.isdigit()
+        option = await self.mbot.option_selector(
+            message,
+            '**Please enter a number corresponding to the type of extension you want to disable;**',
+            {'plugin': 'Plugin', 'cmd': 'Command'}
         )
 
-        if choice.content in ['1', '2']:
-            if choice.content == '1':
+        if option is not None:
+            if option == 'plugin':
                 await self.disable_plugin(message)
             else:
                 await self.disable_cmd(message)
         else:
-            await self.mbot.send_message(message.channel, f'{message.author.mention} *Try again...* :cry:')
-
-        await self.mbot.delete_message(msg)
+            await self.mbot.send_message(message.channel, f'{message.author.mention} **Exiting config menu...** :cry:')
