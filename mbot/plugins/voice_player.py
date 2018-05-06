@@ -5,6 +5,7 @@ import logging
 import asyncio
 from collections import defaultdict
 
+from pymongo.errors import PyMongoError
 from discord import Channel
 from youtube_dl import YoutubeDL
 
@@ -79,91 +80,112 @@ class VoicePlayer(BasePlugin):
     async def add_to_playlist(self, server_id, user, media_info):
         await self.ensure_playlist_exists(server_id)
 
-        ret = await self.player_db.update_one(
-            {'server_id': server_id},
-            {'$push': {'playlist': {
-                'id': media_info['id'],
-                'title': media_info['title'],
-                'url': media_info['url'],
-                'duration': media_info.get('duration'),
-                'is_live': media_info.get('is_live') or False,
-                'user': user,
-                'timestamp': time.time()
-            }}}
-        )
-
-        return bool(ret)
-
-    async def remove_from_playlist(self, server_id, media_id):
-        await self.ensure_playlist_exists(server_id)
-
-        ret = await self.player_db.update_one(
-            {'server_id': server_id},
-            {'$pull': {'playlist': {'id': media_id}}}
-        )
-
-        return bool(ret)
-
-    async def set_volume(self, server_id, volume):
-        await self.ensure_playlist_exists(server_id)
-
-        ret = await self.player_db.update_one(
-            {'server_id': server_id},
-            {'$set': {'volume': volume}}
-        )
-
-        return bool(ret)
-
-    async def set_shuffle(self, server_id):
-        await self.ensure_playlist_exists(server_id)
-
-        ret = await self.player_db.update_one(
-            {'server_id': server_id},
-            {'$set': {'shuffle': True}}
-        )
-
-        return bool(ret)
-
-    async def set_unshuffle(self, server_id):
-        await self.ensure_playlist_exists(server_id)
-
-        ret = await self.player_db.update_one(
-            {'server_id': server_id},
-            {'$set': {'shuffle': False}}
-        )
-
-        return bool(ret)
-
-    async def set_playing(self, server_id, user, media_info):
-        await self.ensure_playlist_exists(server_id)
-
-        if media_info.get('id') is not None:
+        try:
             ret = await self.player_db.update_one(
                 {'server_id': server_id},
-                {'$set': {'now_playing': {
+                {'$push': {'playlist': {
                     'id': media_info['id'],
                     'title': media_info['title'],
                     'url': media_info['url'],
                     'duration': media_info.get('duration'),
                     'is_live': media_info.get('is_live') or False,
                     'user': user,
-                    'timestamp': time.time(),
-                    'skip_votes': {
-                        'num_votes': 0,
-                        'users': []
-                    }
+                    'timestamp': time.time()
                 }}}
             )
 
-            return bool(ret)
+            return ret.modified_count > 0
+        except PyMongoError:
+            return False
+
+    async def remove_from_playlist(self, server_id, media_id):
+        await self.ensure_playlist_exists(server_id)
+
+        try:
+            ret = await self.player_db.update_one(
+                {'server_id': server_id},
+                {'$pull': {'playlist': {'id': media_id}}}
+            )
+
+            return ret.modified_count > 0
+        except PyMongoError:
+            return False
+
+    async def set_volume(self, server_id, volume):
+        await self.ensure_playlist_exists(server_id)
+
+        try:
+            ret = await self.player_db.update_one(
+                {'server_id': server_id},
+                {'$set': {'volume': volume}}
+            )
+
+            return ret.modified_count > 0
+        except PyMongoError:
+            return False
+
+    async def set_shuffle(self, server_id):
+        await self.ensure_playlist_exists(server_id)
+
+        try:
+            ret = await self.player_db.update_one(
+                {'server_id': server_id},
+                {'$set': {'shuffle': True}}
+            )
+
+            return ret.modified_count > 0
+        except PyMongoError:
+            return False
+
+    async def set_unshuffle(self, server_id):
+        await self.ensure_playlist_exists(server_id)
+
+        try:
+            ret = await self.player_db.update_one(
+                {'server_id': server_id},
+                {'$set': {'shuffle': False}}
+            )
+
+            return ret.modified_count > 0
+        except PyMongoError:
+            return False
+
+    async def set_playing(self, server_id, user, media_info):
+        await self.ensure_playlist_exists(server_id)
+
+        if media_info.get('id') is not None:
+            try:
+                ret = await self.player_db.update_one(
+                    {'server_id': server_id},
+                    {'$set': {'now_playing': {
+                        'id': media_info['id'],
+                        'title': media_info['title'],
+                        'url': media_info['url'],
+                        'duration': media_info.get('duration'),
+                        'is_live': media_info.get('is_live') or False,
+                        'user': user,
+                        'timestamp': time.time(),
+                        'skip_votes': {
+                            'num_votes': 0,
+                            'users': []
+                        }
+                    }}}
+                )
+
+                return ret.modified_count > 0
+            except PyMongoError:
+                return False
 
     async def reset_playing(self, server_id):
-        ret = await self.player_db.update_one(
-            {'server_id': server_id},
-            {'$set': {'now_playing': None}}
-        )
+        try:
+            ret = await self.player_db.update_one(
+                {'server_id': server_id},
+                {'$set': {'now_playing': None}}
+            )
 
-        return bool(ret)
+            return ret.modified_count > 0
+        except PyMongoError:
+            return False
 
     @staticmethod
     def is_voice_connected(server):
