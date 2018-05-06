@@ -22,6 +22,14 @@ class PluginManager(object):
         # using the `commands_for_server` method.
         self.commands = {}
 
+    def get_plugin(self, name):
+        for plugin in self.plugins:
+            if plugin.__class__.__name__ == name:
+                return plugin
+
+    def get_command_handler(self, plugin):
+        return self.get_plugin(plugin).on_command
+
     @staticmethod
     def discover_plugins():
         for plugin in plugins():

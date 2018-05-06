@@ -19,6 +19,14 @@ class BasePlugin(object, metaclass=PluginRegistry):
 
         self.info = 'placeholder text CHANGEME'
 
+    async def on_command(self, message, cmd_obj):
+        '''
+        Handle a command. If the `call_on_message` argument of the command was `True`, then
+        `on_message` will also be called. This will always execute first. This method should only
+        ever return `None` or `ABORT_COMMAND`. Returning `ABORT_COMMAND` stops the execution
+        of the command, i.e. the `command` decorator does no further work.
+        '''
+
     async def on_ready(self):
         '''Called when the client is done preparing the data received from Discord.'''
 

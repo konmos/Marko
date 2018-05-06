@@ -9,6 +9,15 @@ from discord import Forbidden
 log = logging.getLogger(__name__)
 
 
+class ABORT_COMMAND(object):
+    '''
+    Custom type which indicates that the execution of a command should be aborted.
+    This should be only used from within the command handler method of a plugin.
+    This allows greater control over the execution of a command on a per-plugin basis. If
+    this is not returned explicitly, the command will be processed and executed as normal.
+    '''
+
+
 def command(*, regex='', usage='', description='', name='', call_on_message=False,
             su=False, perms=None, cooldown=None, aliases=None, nsfw=False):
     '''
@@ -36,6 +45,10 @@ def command(*, regex='', usage='', description='', name='', call_on_message=Fals
             # This is checked in the main loop anyway, but we'll check anyway in case
             # this gets called from outside the loop.
             if not match:
+                return
+
+            ch = await self.mbot.plugin_manager.get_command_handler(wrapper.info['plugin'])(message, wrapper)
+            if ch is not None and issubclass(ch, ABORT_COMMAND):
                 return
 
             log.debug(f'running command {wrapper.info["name"]} in server {message.server.id}')
