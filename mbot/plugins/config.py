@@ -1,5 +1,7 @@
 import asyncio
 
+from pymongo.errors import PyMongoError
+
 from ..plugin import BasePlugin
 from ..command import command
 
@@ -9,44 +11,40 @@ class ConfigPlugin(BasePlugin):
     Plugin which manages server-specific configurations.
     '''
     async def _set_prefix(self, server_id, prefix):
-        ret = await self.mbot.mongo.config.update_one(
-            {'server_id': server_id},
-            {'$set': {'prefix': prefix}}
-        )
+        try:
+            ret = await self.mbot.mongo.config.update_one(
+                {'server_id': server_id},
+                {'$set': {'prefix': prefix}}
+            )
 
-        return bool(ret)
+            return ret.modified_count > 0
+        except PyMongoError:
+            return False
 
     async def _get_prefix(self, server_id):
-        ret = await self.mbot.mongo.config.find_one({'server_id': server_id})['prefix']
-        return ret
+        return await self.mbot.mongo.config.find_one({'server_id': server_id})['prefix']
 
     async def _set_nsfw(self, server_id, channel_id):
-        doc = await self.mbot.mongo.config.find_one({'server_id': server_id})
+        try:
+            ret = await self.mbot.mongo.config.update_one(
+                {'server_id': server_id},
+                {'$addToSet': {'nsfw_channels': channel_id}}
+            )
 
-        # Already NSFW.
-        if channel_id in doc['nsfw_channels']:
+            return ret.modified_count > 0
+        except PyMongoError:
             return False
-
-        ret = await self.mbot.mongo.config.update_one(
-            {'server_id': server_id},
-            {'$push': {'nsfw_channels': channel_id}}
-        )
-
-        return bool(ret)
 
     async def _set_sfw(self, server_id, channel_id):
-        doc = await self.mbot.mongo.config.find_one({'server_id': server_id})
+        try:
+            ret = await self.mbot.mongo.config.update_one(
+                {'server_id': server_id},
+                {'$pull': {'nsfw_channels': channel_id}}
+            )
 
-        # Already SFW.
-        if channel_id not in doc['nsfw_channels']:
+            return ret.modified_count > 0
+        except PyMongoError:
             return False
-
-        ret = await self.mbot.mongo.config.update_one(
-            {'server_id': server_id},
-            {'$pull': {'nsfw_channels': channel_id}}
-        )
-
-        return bool(ret)
 
     @command(description='set this channel to nsfw', usage='nsfw')
     async def nsfw(self, message):
@@ -90,26 +88,26 @@ class ConfigPlugin(BasePlugin):
                 )
 
     async def _ignore_channel(self, server_id, channel_id):
-        doc = await self.mbot.mongo.config.find_one({'server_id': server_id})
+        try:
+            ret = await self.mbot.mongo.config.update_one(
+                {'server_id': server_id},
+                {'$addToSet': {'ignored_channels': channel_id}}
+            )
 
-        # Already ignored.
-        if channel_id in doc['ignored_channels']:
+            return ret.modified_count > 0
+        except PyMongoError:
             return False
 
-        ret = await self.mbot.mongo.config.update_one(
-            {'server_id': server_id},
-            {'$push': {'ignored_channels': channel_id}}
-        )
-
-        return bool(ret)
-
     async def _unignore_channel(self, server_id, channel_id):
-        ret = await self.mbot.mongo.config.update_one(
-            {'server_id': server_id},
-            {'$pull': {'ignored_channels': channel_id}}
-        )
+        try:
+            ret = await self.mbot.mongo.config.update_one(
+                {'server_id': server_id},
+                {'$pull': {'ignored_channels': channel_id}}
+            )
 
-        return bool(ret)
+            return ret.modified_count > 0
+        except PyMongoError:
+            return False
 
     @command(description='ignore the current channel', usage='ignore', perms=0x8)
     async def ignore(self, message):
