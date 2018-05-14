@@ -1,5 +1,8 @@
 from textwrap import dedent
 
+from bson.json_util import loads
+from pymongo.results import InsertOneResult, DeleteResult, UpdateResult
+
 from ..plugin import BasePlugin
 from ..command import command
 
@@ -22,6 +25,13 @@ CMD_HELP = (
     '**{name}** - *{description}*\n\n'
     'Usage: `{prefix}{usage}`\n\n'
     '{detailed_info}'
+)
+
+
+ALLOWED_DB_OPS = (
+    'insert_one', 'replace_one',
+    'delete_one', 'delete_many',
+    'update_one', 'update_many',
 )
 
 
@@ -167,3 +177,56 @@ class Core(BasePlugin):
     async def reset_configs(self, message):
         ret = await self.mbot.plugin_manager.refresh_configs()
         await self.mbot.send_message(message.channel, f':ok_hand: **Refreshed {ret.modified_count} configs.**')
+
+    @command(su=True, regex='^db (\w+?)\.(\w+?) (\w+?) (.+)$', name='db')
+    async def run_db_op(self, message, db, col, op, data):
+        data = data.replace('$SERVER$', message.server.id).replace('$CHANNEL$', message.channel.id)
+
+        if op not in ALLOWED_DB_OPS:
+            return await self.mbot.send_message(message.channel, f'`{op}` Operation not allowed.')
+
+        try:
+            database = getattr(self.mbot.mongo, db)
+            collection = getattr(database, col)
+            operation = getattr(collection, op)
+        except AttributeError:
+            return await self.mbot.send_message(message.channel, 'Unknown database or operation.')
+
+        # The data argument can either be a array of args which are star-unpacked,
+        # or it can be a dict with two top level values "args" and "kwargs";
+        # args must be an array and kwargs must be a dict.
+        try:
+            decoded_data = loads(data)
+        except:
+            return await self.mbot.send_message(message.channel, 'Incorrect argument data.')
+
+        if isinstance(decoded_data, dict):
+            ret = await operation(
+                *decoded_data.get('args', []),
+                **decoded_data.get('kwargs', {})
+            )
+        elif isinstance(decoded_data, list):
+            ret = await operation(
+                *decoded_data
+            )
+        else:
+            ret = None
+
+        if ret is not None:
+            if isinstance(ret, UpdateResult):
+                return await self.mbot.send_message(
+                    message.channel,
+                    f'**Done! Updated {ret.modified_count} document(s).**'
+                )
+            elif isinstance(ret, InsertOneResult):
+                return await self.mbot.send_message(
+                    message.channel,
+                    f'**Done! Inserted document with `_id` `{ret.inserted_id}`.**'
+                )
+            elif isinstance(ret, DeleteResult):
+                return await self.mbot.send_message(
+                    message.channel,
+                    f'**Done! Deleted {ret.deleted_count} document(s).**'
+                )
+
+        return await self.mbot.send_message(message.channel, 'An unknown error occurred.')
