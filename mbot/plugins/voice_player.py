@@ -411,7 +411,7 @@ class VoicePlayer(BasePlugin):
         if message.author.id in playlist['now_playing']['skip_votes']['users']:
             return await self.mbot.send_message(message.channel, '**You\'ve already voted!**')
 
-        num_users = len(message.server.voice_client.channel.voice_members)
+        num_users = len([u for u in message.server.voice_client.channel.voice_members if not u.bot])
 
         await self.player_db.update_one(
             {'server_id': message.server.id},
@@ -423,10 +423,10 @@ class VoicePlayer(BasePlugin):
             {'$push': {'now_playing.skip_votes.users': message.author.id}}
         )
 
-        votes = playlist['now_playing']['skip_votes']['num_votes'] + 2  # We add 2 because we ignore the bot.
+        votes = playlist['now_playing']['skip_votes']['num_votes'] + 1  # We add one because the user voted
 
         # To skip a song, the number of votes must be greater than the `ceil` of 60%
-        # the number of users in the voice channel.
+        # of the total number of non-bot users in the voice channel.
         if votes >= math.ceil(num_users * 0.6):
             await self.mbot.send_message(message.channel, ':ok_hand: **Skipping song.**')
             self.stop_player(message.server.id)
