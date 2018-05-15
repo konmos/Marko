@@ -51,7 +51,7 @@ def command(*, regex='', usage='', description='', name='', call_on_message=Fals
             if ch is not None and issubclass(ch, ABORT_COMMAND):
                 return
 
-            log.debug(f'running command {wrapper.info["name"]} in server {message.server.id}')
+            log.debug(f'running command {wrapper.info["name"]} in server {message.server.id} {match.groups()}')
 
             # Check if command history exists. Create it if not.
             doc = await self.mbot.mongo.cmd_history.find_one(
@@ -100,7 +100,10 @@ def command(*, regex='', usage='', description='', name='', call_on_message=Fals
             try:
                 await func(self, message, *match.groups())
             except Forbidden:
-                log.error(f'forbidden to run command {wrapper.info["name"]} in server {message.server.id}')
+                log.error(
+                    f'forbidden to run command {wrapper.info["name"]} in server {message.server.id} {match.groups()}'
+                )
+
                 msg = await self.mbot.send_message(message.channel, '*I cannot do that...* :cry:')
                 await asyncio.sleep(5)
                 await self.mbot.delete_message(msg)
