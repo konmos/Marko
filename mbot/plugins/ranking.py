@@ -279,7 +279,7 @@ class Ranking(BasePlugin):
         top = []
 
         cursor = self.ranking_db.find({'ranking.server_id': message.server.id})
-        cursor.sort('ranking.score', -1).limit(10)
+        cursor.sort('ranking.$.score', -1).limit(10)
         async for doc in cursor:
             top.append(doc['user_id'])
 
