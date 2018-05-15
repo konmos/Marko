@@ -1,5 +1,6 @@
 import os
 import io
+import time
 import random
 import mimetypes
 
@@ -10,6 +11,15 @@ from PIL import Image, ImageDraw, ImageFont
 from ..plugin import BasePlugin
 from ..command import command
 from ..utils import long_running_task
+
+
+# The XP cooldown represents the amount of time in seconds
+# that needs to elapse before reaching maximum XP gains.
+# When XP is gained by talking, an initial number is randomly selected
+# and this is then multiplied by [`time.time() - last_awarded_xp` / `XP_COOLDOWN`].
+# This is done to minimise rewards when messages are spammed, or sent in
+# rapid succession. Note that the multiplier value cannot exceed 1.
+XP_COOLDOWN = 30
 
 
 class Ranking(BasePlugin):
@@ -61,7 +71,9 @@ class Ranking(BasePlugin):
         if not doc:
             ret = await self.ranking_db.update_one(
                 {'user_id': user_id},
-                {'$push': {'ranking': {'server_id': server_id, 'score': 0}}}
+                {'$push': {'ranking': {
+                    'server_id': server_id, 'score': 0, 'last_awarded_xp': XP_COOLDOWN
+                }}}
             )
 
             return ret
@@ -79,6 +91,12 @@ class Ranking(BasePlugin):
             {'user_id': user_id, 'ranking': {'$elemMatch': {'server_id': server_id}}},
             {'$inc': {'ranking.$.score': by}}
         )
+
+        if by > 0:
+            await self.ranking_db.update_one(
+                {'user_id': user_id, 'ranking': {'$elemMatch': {'server_id': server_id}}},
+                {'$set': {'ranking.$.last_awarded_xp': time.time()}}
+            )
 
     async def update_background(self, user_id, bckg):
         await self.ensure_profile_exists(user_id)
@@ -115,10 +133,22 @@ class Ranking(BasePlugin):
         }
 
     async def on_message(self, message):
+        reward = random.randint(5, 15)
+
+        doc = await self.ranking_db.find_one(
+            {'user_id': message.author.id}
+        )
+
+        if doc is not None:
+            last_awards = {server['server_id']: server['last_awarded_xp'] for server in doc['ranking']}
+
+            if last_awards.get(message.server.id):
+                reward *= min((time.time() - last_awards[message.server.id]), XP_COOLDOWN) / XP_COOLDOWN
+
         await self.update_xp(
             message.author.id,
             message.server.id,
-            random.randint(2, 14)
+            int(reward)
         )
 
     @command(description='view your current total xp', usage='xp', call_on_message=True)
