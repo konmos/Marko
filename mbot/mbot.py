@@ -266,10 +266,9 @@ class mBot(discord.Client):
                 'plugins': plugins,  # List of enabled plugins and their commands.
 
                 # Ignored channels are channels in which the bot cannot talk.
-                # The `on_message` event is ignored in these channels. The only exception to
-                # this is when an admin runs either the `ignore` or `unignore` command. In this case
-                # the event is still triggered and the command goes through - this is done for convenience.
-                # All other events still trigger normally.
+                # All commands are ignored in these channels, and messages or files cannot
+                # be sent to them. The only exceptions are when an admin runs either the `ignore`
+                # or `unignore` command. All events still triger normally in these channels.
                 'ignored_channels': [],
                 'nsfw_channels': []  # Some commands may be nsfw and can only be run in nsfw channels.
             }
@@ -382,30 +381,28 @@ class mBot(discord.Client):
 
             return
 
-        # This event is skipped in ignored channels...
-        if message.channel.id in cfg['ignored_channels']:
-            # ...Unless the user is an admin and runs either the `ignore` or `unignore` command.
-            if message.author.permissions_in(message.channel).administrator:
-                pattern = f'^(?:{re.escape(cfg["prefix"])})(?:ignore|unignore)$'
-
-                if not re.match(pattern, message.content):
-                    return
-            else:
-                return
-
         cmd, matched_cmd = False, None
 
         if message.content.startswith(cfg['prefix']):
             message.content, cmd = message.content[len(cfg['prefix']):], True
 
-        commands = await self.plugin_manager.commands_for_server(message.server.id)
-
         if cmd:
+            # Skip command if we are in an ignored channel...
+            if message.channel.id in cfg['ignored_channels']:
+                # ...Unless the user is an admin and runs either the `ignore` or `unignore` command.
+                if message.author.permissions_in(message.channel).administrator:
+                    if not re.match('^ignore|unignore$', message.content):
+                        return
+                else:
+                    return
+
             if max(self.recent_commands.get(message.author.id, [0])) + 1 > time.time():
                 await self.send_message(
                     message.channel, f'**Whoah! You\'re doing that too often {message.author.name}!**'
                 )
             else:
+                commands = await self.plugin_manager.commands_for_server(message.server.id)
+
                 for command in commands.values():
                     if command._pattern.match(message.content):
                         self.recent_commands[message.author.id].append(time.time())
