@@ -23,7 +23,7 @@ DEFAULT_HELP = (
 
 CMD_HELP = (
     '**{name}** - *{description}*\n\n'
-    'Usage: `{prefix}{usage}`\n\n'
+    'Usage: `{prefix}{usage}`{aliases}\n\n'
     '{detailed_info}'
 )
 
@@ -61,19 +61,22 @@ class Core(BasePlugin):
                 prefix=server_cfg['prefix']
             ))
         else:
-            if cmd in commands:
+            c = self.mbot.plugin_manager.command_from_string(cmd, False)
+
+            if c and c.info['name'] in commands:
                 detailed_info = dedent(
-                    getattr(self.mbot.plugin_manager.commands[cmd][2], 'detailed_info', '').format(
-                        command=server_cfg['prefix'] + cmd
+                    getattr(self.mbot.plugin_manager.commands[c.info['name']][2], 'detailed_info', '').format(
+                        command=server_cfg['prefix'] + c.info['name']
                     )
                 )
 
                 await self.mbot.send_message(message.channel, CMD_HELP.format(
-                    name=cmd,
-                    description=self.mbot.plugin_manager.commands[cmd][0],
+                    name=c.info['name'],
+                    description=self.mbot.plugin_manager.commands[c.info['name']][0],
                     prefix=server_cfg['prefix'],
-                    usage=self.mbot.plugin_manager.commands[cmd][1],
-                    detailed_info=detailed_info
+                    usage=self.mbot.plugin_manager.commands[c.info['name']][1],
+                    detailed_info=detailed_info,
+                    aliases=f'\nAliases: `{" | ".join(c.info["aliases"])}`' if c.info["aliases"] else ''
                 ))
             else:
                 await self.mbot.send_message(message.channel, '*I did not recognize that command...*')

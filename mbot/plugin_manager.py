@@ -1,6 +1,7 @@
 import sys
 import logging
 import importlib.util
+from string import whitespace
 from collections import defaultdict
 
 from discord import User
@@ -212,21 +213,58 @@ class PluginManager(object):
 
             return await bulk.execute()
 
-    def _plugin_for_cmd(self, command):
+    def _plugin_for_cmd(self, command, ignore_aliases=True):
+        '''
+        Utility function to retrieve the plugin name of a command.
+        Note that the `command` argument must be the command name. If this is not known,
+        use the `command_from_string` method first.
+        '''
         if self.commands.get(command):
             return self.commands[command][2].info['plugin']
 
-    def command_exists(self, command_string):
+        if not ignore_aliases:
+            for cmd in self.commands.values():
+                if command in cmd[2].info['aliases']:
+                    return cmd[2].info['plugin']
+
+    plugin_for_cmd = _plugin_for_cmd
+
+    @staticmethod
+    def _match_cmd(string, cmd):
         '''
-        Utility function to check if a command exists given the entire command string.
-        This is useful if we do not know the name of the command. If the name is known, it might
-        be better to use `_plugin_for_cmd` instead.
+        A string matches a command if it is exactly equal to the command
+        in both content and length, or if it is equal in content up to `string[:len(cmd)]`
+        and `string[:len(cmd)+1]` is equal to a whitespace character.
         '''
-        matches = [x for x in self.commands if command_string.startswith(x)]
+        if string.startswith(cmd):
+            if len(string) == len(cmd):
+                return True
+            elif string[:len(cmd)+1] in whitespace:
+                return True
+
+        return False
+
+    def command_from_string(self, string, ignore_aliases=True):
+        '''
+        Utility function to retrieve a command based on a string. This string
+        can be either the entire command string, with arguments, or just the command name.
+        Only the start of the string is actually used, and it is assumed that the beginning
+        of the string is always the command name itself.
+        If `ignore_aliases` is False, command aliases are taken into account, if any
+        of them match, then the parent command is returned.
+        '''
+        matches = [x for x in self.commands if self._match_cmd(string, x)]
 
         if matches:
             # We return the longest matching command
-            return max(matches, key=len)
+            return self.commands.get(max(matches, key=len))[2]
+
+        if not ignore_aliases:
+            aliases_map = {alias: cmd for cmd in self.commands for alias in self.commands[cmd][2].info['aliases']}
+            alias_matches = [x for x in aliases_map if self._match_cmd(string, x)]
+
+            if alias_matches:
+                return self.commands.get(aliases_map[max(alias_matches, key=len)])[2]
 
     async def enable_command(self, server_id, command, user_id=None):
         log.debug(f'enabling {command} command for server {server_id}')
