@@ -16,8 +16,11 @@ def main():
     except (IOError, WindowsError):
         sys.exit(0)
 
+    # This helps us find ffmpeg for the voice player.
     if os.name in ['nt', 'ct']:
-        os.environ['PATH'] += f';bin{os.sep}'  # This is required on Windows to load the ffmpeg binary.
+        os.environ['PATH'] += f';bin{os.sep}'
+    else:
+        os.environ['PATH'] += f':bin/'  # The ffmpeg binary must be copied here manually...
 
     logging.config.dictConfig(log_conf)
     log = logging.getLogger(__name__)
