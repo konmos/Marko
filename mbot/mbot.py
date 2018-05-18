@@ -21,6 +21,7 @@ import sys
 import time
 import struct
 import signal
+import asyncio
 import logging
 from collections import defaultdict, OrderedDict
 
@@ -46,6 +47,17 @@ opus_lib = {
 class mBot(discord.Client):
     def __init__(self, config, **kwargs):
         super().__init__(**kwargs)
+
+        try:
+            # Make sure we cleanup after ourselves on linux.
+            # This solves some issues with systemd.
+            for signame in ('SIGINT', 'SIGTERM'):
+                self.loop.add_signal_handler(
+                    getattr(signal, signame),
+                    lambda: asyncio.ensure_future(self.close())
+                )
+        except NotImplementedError:
+            pass
 
         # Default global config.
         self.config = config
