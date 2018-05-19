@@ -302,8 +302,14 @@ class Music(BasePlugin):
         if not connected:
             return await self.mbot.send_message(message.channel, '*I could not connect to any voice channels...*')
 
-        info = await self.play_url(message, url)
-        await self.mbot.send_message(message.channel, f':notes: | Playing | **{info["title"]}**')
+        if url.startswith('http'):
+            info = await self.play_url(message, url)
+            return await self.mbot.send_message(message.channel, f':notes: | Playing | **{info["title"]}**')
+
+        return await self.mbot.send_message(
+            message.channel, 'Unrecognised url. :cry:'
+        )
+
     @command(regex='^play-yt (.*?)$', name='play-yt', usage='play-yt <query>')
     async def play_yt(self, message, query):
         if not await self.check_empty_channel(message):
