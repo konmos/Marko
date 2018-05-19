@@ -2,11 +2,16 @@ import aiohttp
 import discord
 from urllib.parse import urlencode
 
+from bs4 import BeautifulSoup
+
 from ..plugin import BasePlugin
 from ..command import command
 
 
-class SearchEngine(BasePlugin):
+USER_AGENT = 'Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:10.0) Gecko/20100101 Firefox/10.0'
+
+
+class Search(BasePlugin):
     @staticmethod
     async def search_ddg(**kwargs):
         '''
@@ -35,7 +40,7 @@ class SearchEngine(BasePlugin):
         '''
 
         api = 'https://api.duckduckgo.com/?{params}'.format(
-            params = urlencode(kwargs)
+            params=urlencode(kwargs)
         )
 
         with aiohttp.ClientSession() as client:
@@ -44,17 +49,63 @@ class SearchEngine(BasePlugin):
 
         return j
 
-    @command(regex='^search (.*?)$', cooldown=5, usage='search <term>', description='search the web')
-    async def search(self, message, query):
+    @staticmethod
+    async def search_google(query):
+        search = 'https://www.google.com/search?{q}'.format(
+            q=urlencode({'q': query})
+        )
+
+        with aiohttp.ClientSession(headers={'User-Agent': USER_AGENT}) as client:
+            async with client.get(search) as r:
+                html = await r.text()
+
+        soup, results = BeautifulSoup(html, 'html.parser'), []
+
+        for u in soup.find_all(attrs={'class': 'g'}):
+            if u and hasattr(u, 'a'):
+                if u.a['href'].startswith('http'):
+                    results.append((
+                        u.a['href'],
+                        u.text
+                    ))
+                elif u.a['href'].startswith('/url?q='):
+                    results.append((
+                        u.a['href'][len('/url?q='):].rsplit('&sa', 1)[0],
+                        u.text
+                    ))
+
+        return results
+
+    @staticmethod
+    async def search_youtube(query):
+        search = 'https://www.youtube.com/results?{q}'.format(
+            q=urlencode({'search_query': query})
+        )
+
+        with aiohttp.ClientSession(headers={'User-Agent': USER_AGENT}) as client:
+            async with client.get(search) as r:
+                html = await r.text()
+
+        soup, results = BeautifulSoup(html, 'html.parser'), []
+
+        for vid in soup.findAll(attrs={'class': 'yt-uix-tile-link'}):
+            if vid:
+                results.append('https://www.youtube.com' + vid['href'])
+
+        return results
+
+    @command(regex='^abstract (.*?)$', cooldown=10, usage='abstract <term>',
+             description='search for a query and return abstract info', aliases=['ddg'])
+    async def abstract(self, message, query):
         result = await self.search_ddg(q=query, format='json', no_html=1, skip_disambig=1, no_redirect=1)
 
         if not result['AbstractText']:
             await self.mbot.send_message(message.channel, 'I couldn\'t find anything matching that query. :cry:')
         else:
             embed = discord.Embed(
-                title = result['Heading'],
-                description = result['AbstractText'],
-                colour = 0xff5722
+                title=result['Heading'],
+                description=result['AbstractText'],
+                colour=0xff5722
             )
 
             embed.set_footer(text='Web search powered by https://duckduckgo.com/')
@@ -62,3 +113,25 @@ class SearchEngine(BasePlugin):
             embed.add_field(name='source', value=result['AbstractURL'])
 
             await self.mbot.send_message(message.channel, embed=embed)
+
+    @command(regex='^google (.*?)$', cooldown=60, aliases=['search'])
+    async def google(self, message, query):
+        results = await self.search_google(query)
+
+        if results:
+            await self.mbot.send_message(
+                message.channel, results[0][0]
+            )
+        else:
+            await self.mbot.send_message(message.channel, 'I couldn\'t find anything matching that query. :cry:')
+
+    @command(regex='^youtube (.*?)$', cooldown=60, aliases=['yt'])
+    async def youtube(self, message, query):
+        results = await self.search_youtube(query)
+
+        if results:
+            await self.mbot.send_message(
+                message.channel, results[0]
+            )
+        else:
+            await self.mbot.send_message(message.channel, 'I couldn\'t find anything matching that query. :cry:')
