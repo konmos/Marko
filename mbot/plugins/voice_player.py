@@ -26,7 +26,7 @@ class Player(object):
         self.done_playing = asyncio.Event()
 
 
-class VoicePlayer(BasePlugin):
+class Music(BasePlugin):
     def __init__(self, mbot):
         super().__init__(mbot)
 

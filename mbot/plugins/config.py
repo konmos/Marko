@@ -6,7 +6,7 @@ from ..plugin import BasePlugin
 from ..command import command
 
 
-class ConfigPlugin(BasePlugin):
+class Config(BasePlugin):
     '''
     Plugin which manages server-specific configurations.
     '''

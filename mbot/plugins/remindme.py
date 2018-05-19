@@ -7,7 +7,7 @@ from ..plugin import BasePlugin
 from ..command import command
 
 
-class ReminderBot(BasePlugin):
+class Reminders(BasePlugin):
     def __init__(self, mbot):
         super().__init__(mbot)
 

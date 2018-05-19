@@ -11,7 +11,7 @@ from ..command import command
 from ..utils import long_running_task
 
 
-class SpoilerBot(BasePlugin):
+class Spoilers(BasePlugin):
     @long_running_task()
     def create_image(self, text):
         img = Image.new('RGB', (500, 90), (60, 63, 68))

@@ -113,7 +113,8 @@ class Core(BasePlugin):
 
         await self.mbot.send_message(message.channel, msg)
 
-    @command(regex='^disabled-commands$', description='display all disabled plugins and commands')
+    @command(regex='^disabled-commands$', description='display all disabled plugins and commands',
+             name='disabled-commands')
     async def disabled_commands(self, message):
         enabled_plugins = await self.mbot.plugin_manager.plugins_for_server(message.server.id)
         commands = await self.mbot.plugin_manager.commands_for_server(message.server.id)
