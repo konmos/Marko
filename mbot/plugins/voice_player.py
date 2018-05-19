@@ -304,6 +304,26 @@ class Music(BasePlugin):
 
         info = await self.play_url(message, url)
         await self.mbot.send_message(message.channel, f':notes: | Playing | **{info["title"]}**')
+    @command(regex='^play-yt (.*?)$', name='play-yt', usage='play-yt <query>')
+    async def play_yt(self, message, query):
+        if not await self.check_empty_channel(message):
+            return
+
+        connected = await self.join_voice_channel(message, None)
+
+        if not connected:
+            return await self.mbot.send_message(message.channel, '*I could not connect to any voice channels...*')
+
+        search = self.mbot.plugin_manager.get_plugin('Search')
+        results = await search.search_youtube(query)
+
+        if results:
+            info = await self.play_url(message, results[0])
+            return await self.mbot.send_message(message.channel, f':notes: | Playing | **{info["title"]}**')
+
+        return await self.mbot.send_message(
+            message.channel, 'I couldn\'t find anything matching that query. :cry:'
+        )
 
     @command(regex='^stop$', description='stop the player', usage='stop')
     async def stop(self, message):
