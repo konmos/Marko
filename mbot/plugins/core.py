@@ -1,5 +1,7 @@
 from textwrap import dedent
+from datetime import datetime
 
+import discord
 from bson.json_util import loads
 from pymongo.results import InsertOneResult, DeleteResult, UpdateResult
 
@@ -36,6 +38,21 @@ ALLOWED_DB_OPS = (
 
 
 class Core(BasePlugin):
+    @command()
+    async def info(self, message):
+        app_info = await self.mbot.application_info()
+        local_time = datetime.now().strftime('%a, %d %b %Y %H:%M:%S')
+
+        embed = discord.Embed(title='MarkoBot', colour=0x7289da)
+        embed.set_thumbnail(url=app_info.icon_url)
+
+        embed.add_field(name='Language / Library', value=f'Python / discord.py ({discord.__version__})', inline=False)
+        embed.add_field(name='Owner', value=f'{app_info.owner.name}#{app_info.owner.discriminator}')
+        embed.add_field(name='Help Commands', value='help, commands, plugin')
+        embed.add_field(name='Local Time', value=local_time, inline=False)
+
+        await self.mbot.send_message(message.channel, embed=embed)
+
     @command(regex='^plugin (.*?)$', name='plugin', usage='plugin (<plugin>)',
              description='display more info on a certain plugin')
     async def plugin_help(self, message, plugin):
