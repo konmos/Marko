@@ -21,3 +21,18 @@ class Miscellaneous(BasePlugin):
                 message.channel,
                 f'**I could not find that command...**'
             )
+
+    @command(regex='^regex (.*?)$')
+    async def regex(self, message, string):
+        cmd = self.mbot.plugin_manager.command_from_string(string, False)
+
+        if cmd:
+            return await self.mbot.send_message(
+                message.channel,
+                f'`{cmd._pattern.pattern}`'
+            )
+
+        return await self.mbot.send_message(
+            message.channel,
+            f'**I could not find that command...**'
+        )
