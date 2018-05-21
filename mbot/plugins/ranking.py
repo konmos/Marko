@@ -278,17 +278,34 @@ class Ranking(BasePlugin):
     async def top(self, message):
         top = []
 
-        cursor = self.ranking_db.find({'ranking.server_id': message.server.id})
-        cursor.sort('ranking.$.score', -1).limit(10)
-        async for doc in cursor:
-            top.append(doc['user_id'])
+        # Thanks to https://stackoverflow.com/questions/28889240/mongodb-sort-documents-by-array-elements
+        pipeline = [
+            {'$match': {'ranking.server_id': message.server.id}},
+            {'$addFields': {
+                'order': {
+                    '$filter': {
+                        'input': '$ranking',
+                        'as': 'r',
+                        'cond': {'$eq': ['$$r.server_id', message.server.id]}
+                    }
+                }
+            }},
+            {'$sort': {'order': -1}}
+        ]
+
+        async for doc in self.ranking_db.aggregate(pipeline):
+            user = message.server.get_member(doc['user_id'])
+
+            if user:
+                scores = {server['server_id']: server['score'] for server in doc['ranking']}
+                top.append((user, scores[message.server.id]))
+
+            if len(top) == 10:
+                break
 
         code_block = '```\n'
         for x, ru in enumerate(top):
-            u = message.server.get_member(ru)
-
-            if u is not None:
-                code_block += f'[{x+1}]\t>\t{u.name}\n'
+            code_block += '{:<8} >\t{:<32} {}\n'.format(f'[{x + 1}]', ru[0].name, f'({ru[1]})')
 
         code_block += '\n```'
         await self.mbot.send_message(message.channel, code_block)
