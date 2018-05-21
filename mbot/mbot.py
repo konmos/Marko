@@ -379,19 +379,23 @@ class mBot(discord.Client):
 
         cfg = await self.mongo.config.find_one({'server_id': message.server.id})
 
-        # If we get mentioned, reply with a default help command.
-        if re.match(f'^<@{self.user.id}>.*?$', message.content):
+        # When the bot is mentioned with no arguments, reply with a default help command.
+        # Otherwise we try to process the command normally as if it was ran with a prefix.
+        _mention = re.match(f'^<@{self.user.id}>(?: (.*?))?$', message.content)
+
+        if _mention:
             prefix = cfg['prefix']
 
-            await self.send_message(
-                message.channel,
-                f':wave: **Hi there {message.author.mention}. The default prefix in this server is '
-                f'`{prefix}`. For help try running `{prefix}help`. For help on a specific command try '
-                f'`{prefix}help <command>`. To view a list of all commands run `{prefix}commands`. '
-                'Have fun!** :ok_hand:'
-            )
+            if not _mention.groups() or _mention.groups()[0] is None:
+                return await self.send_message(
+                    message.channel,
+                    f':wave: **Hi there {message.author.mention}. The default prefix in this server is '
+                    f'`{prefix}`. For help try running `{prefix}help`. For help on a specific command try '
+                    f'`{prefix}help <command>`. To view a list of all commands run `{prefix}commands`. '
+                    'BTW, you can also just mention me instead of using the command prefix. Have fun!** :ok_hand:'
+                )
 
-            return
+            message.content = cfg['prefix'] + _mention.groups()[0]
 
         cmd, matched_cmd = False, None
 
