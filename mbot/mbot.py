@@ -210,7 +210,7 @@ class mBot(discord.Client):
                         buffer = io.BytesIO(bytes(await r.read()))
 
                         ret = await super(mBot, self).send_file(
-                            destination, buffer, filename=fp.split('/')[-1], content=content, tts=tts
+                            destination, buffer, filename=filename or fp.split('/')[-1], content=content, tts=tts
                         )
 
                         buffer.close()

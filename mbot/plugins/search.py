@@ -1,3 +1,5 @@
+import io
+
 import aiohttp
 import discord
 from urllib.parse import urlencode
@@ -93,6 +95,42 @@ class Search(BasePlugin):
                 results.append('https://www.youtube.com' + vid['href'])
 
         return results
+
+    @staticmethod
+    async def search_google_maps(center, api_key, zoom=15, size='640x640', scale=2, download=False):
+        args = {
+            'center': center,
+            'zoom': zoom,
+            'key': api_key,
+            'size': size,
+            'scale': scale
+        }
+
+        search = 'https://maps.googleapis.com/maps/api/staticmap?{params}'.format(
+            params=urlencode(args)
+        )
+
+        if download:
+            with aiohttp.ClientSession() as client:
+                async with client.get(search) as r:
+                    buffer = io.BytesIO(bytes(await r.read()))
+
+            return buffer
+
+        return search
+
+    @command(regex='^map (.*?)$', name='map')
+    async def google_maps(self, message, location):
+        api_key = self.mbot.config.plugin_data.get('google_maps', {}).get('api_key')
+
+        if not api_key:
+            return await self.mbot.send_message(
+                message.channel, '*Well... This shouldn\'t happen. I am missing my maps config.* :cry:'
+            )
+
+        url = await self.search_google_maps(location, api_key)
+
+        await self.mbot.send_file(message.channel, fp=url, filename='staticmap.png')
 
     @command(regex='^abstract (.*?)$', cooldown=10, usage='abstract <term>',
              description='search for a query and return abstract info', aliases=['ddg'])
