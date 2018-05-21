@@ -84,7 +84,7 @@ def command(*, regex='', usage='', description='', name='', call_on_message=Fals
                     return await self.mbot.send_message(
                         message.channel,
                         f'**{message.author.name}, slow down there (this command has a cooldown)...\n'
-                        f'*{int((timestamp + cooldown) - time.time())}* second(s) remaining.**'
+                        f'*{max(int((timestamp + cooldown) - time.time()), 1)}* second(s) remaining.**'
                     )
 
             # Check NSFW status
