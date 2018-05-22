@@ -26,10 +26,3 @@ class Mongo(object):
         self.plugin_data = self.client.plugin_data
 
         log.debug(f'connected to mongo instance at {config.mongo.host}:{config.mongo.port}')
-
-    async def init_stats(self):
-        # Initialise global stats document
-        _doc = await self.stats.find_one({'scope': 'global'})
-
-        if not _doc:
-            await self.stats.insert_one({'scope': 'global'})

@@ -70,11 +70,7 @@ def command(*, regex='', usage='', description='', name='', call_on_message=Fals
             else:
                 history = dict([(cmd['name'], cmd['timestamp']) for cmd in doc['commands']])
 
-            # Update global statistics
-            await self.mbot.mongo.stats.update_one(
-                {'scope': 'global'},
-                {'$inc': {'commands_received': 1}}
-            )
+            await self.mbot.update_stats({'commands_received': 1}, server_id=message.server.id)
 
             # Check cooldown
             if cooldown:
@@ -99,6 +95,21 @@ def command(*, regex='', usage='', description='', name='', call_on_message=Fals
 
             try:
                 await func(self, message, *match.groups())
+
+                await self.mbot.mongo.stats.update_many(
+                    {
+                        'scope': {'$in': ['global', message.server.id]},
+                        'commands_executed.command': {'$ne': wrapper.info['name']}
+                    },
+                    {'$addToSet': {'commands_executed': {'command': wrapper.info['name'], 'n': 0}}}
+                )
+
+                await self.mbot.update_stats(
+                    {'commands_executed.$.n': 1},
+                    server_id=message.server.id,
+                    query={'commands_executed': {'$elemMatch': {'command': wrapper.info['name']}}}
+                )
+
             except Forbidden:
                 log.error(
                     f'forbidden to run command {wrapper.info["name"]} in server {message.server.id} {match.groups()}'
