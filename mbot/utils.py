@@ -25,3 +25,45 @@ def long_running_task(send_typing=True):
             return await mbot.loop.run_in_executor(None, f)
         return wrapper
     return decorator
+
+
+def human_time(seconds, past_tense=True):
+    '''
+    Return a very rough approximate for an amount of seconds in plain english.
+    '''
+    string = ''
+    seconds = int(seconds)
+    days = seconds // (24 * 60 * 60)
+
+    if seconds < 0:
+        return ''
+
+    if days == 0:
+        if seconds < 10:
+            string = 'just now'
+        elif seconds < 60:
+            string = f'{seconds} seconds'
+        elif seconds < 120:
+            string = 'a minute'
+        elif seconds < 3600:
+            string = f'{seconds // 60} minutes'
+        elif seconds < 7200:
+            string = 'an hour'
+        elif seconds < 86400:
+            string = f'{seconds // 3600} hours'
+
+    elif days == 1:
+        string = 'Yesterday'
+    elif days < 7:
+        string = f'{days} days'
+    elif days < 31:
+        string = f'{days // 7} week(s)'
+    elif days < 365:
+        string = f'{days // 30} month(s)'
+    else:
+        string = f'{days // 365} year(s)'
+
+    if past_tense and string != 'just now':
+        return string + ' ago'
+
+    return string
