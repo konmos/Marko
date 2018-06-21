@@ -252,6 +252,8 @@ class Badges(BasePlugin):
         else:
             badge = f'{badge_id}.foil'
 
+        display = {x['badge_id']: x['slot'] for x in doc['display']}
+
         slot = await self.mbot.wait_for_input(
             message,
             '**Display Slots:**\n```[1]\t[2]\t[3]```\n Which slot would you like to place the badge in? '
@@ -265,6 +267,28 @@ class Badges(BasePlugin):
                 '*Unrecognised slot.* :cry:'
             )
 
+        if display.get(badge) == slot.content:
+            return await self.mbot.send_message(
+                message.channel,
+                '*It seems that this badge is already on display.*'
+            )
+
+        moved = False
+
+        if display.get(badge):
+            await self.badges_db.update_one(
+                {'user_id': message.author.id},
+                {'$pull': {'display': {'badge_id': badge}}}
+            )
+
+            moved = True
+
+        if slot.content in list(display.values()):
+            await self.badges_db.update_one(
+                {'user_id': message.author.id},
+                {'$pull': {'display': {'slot': slot.content}}}
+            )
+
         ret = await self.badges_db.update_one(
             {'user_id': message.author.id, 'display.badge_id': {'$ne': badge}},
             {'$push': {'display': {'badge_id': badge, 'timestamp': time.time(), 'slot': slot.content}}}
@@ -273,12 +297,12 @@ class Badges(BasePlugin):
         if ret.modified_count == 1:
             return await self.mbot.send_message(
                 message.channel,
-                '**Badge is now on display!**'
+                f'**{"Badge is now on display!" if not moved else "Badge was moved to the selected slot!"}**'
             )
 
         return await self.mbot.send_message(
             message.channel,
-            'It seems that you already have this badge on display... or something went wrong on my end...'
+            'It seems that something went wrong on my end...'
         )
 
     @long_running_task(send_typing=True)
