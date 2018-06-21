@@ -137,7 +137,7 @@ class mBot(discord.Client):
             except (Forbidden, AttributeError):
                 pass
 
-        if resp.content in ['cancel', 'exit']:
+        if resp is None or resp.content in ['cancel', 'exit']:
             return None
 
         return resp
