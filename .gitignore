@@ -6,6 +6,7 @@ mbot.yaml
 *.xcf
 mbot/notes.txt
 notes.txt
+data/BADGE DATA/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

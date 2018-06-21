@@ -1,10 +1,14 @@
+import os
+import io
 import time
 import random
+
+from PIL import Image
 
 from .badge_data import BADGE_DATA, BADGE_MAP
 from ..plugin import BasePlugin
 from ..command import command
-from ..utils import human_time
+from ..utils import human_time, long_running_task
 
 
 PLAYTIME_RESET = 24 * 60 * 60
@@ -32,7 +36,8 @@ class Badges(BasePlugin):
                 'game': None,
                 'started_playing': None
             },
-            'inventory': []
+            'inventory': [],
+            'display': []
         }
 
     async def drop_rewards(self, user_id, badge_id, seconds_played):
@@ -275,3 +280,42 @@ class Badges(BasePlugin):
             message.channel,
             'It seems that you already have this badge on display... or something went wrong on my end...'
         )
+
+    @long_running_task(send_typing=True)
+    def generate_badges_image(self, display_data):
+        slot_positions = {
+            '1': (39, 39),
+            '2': (389, 39),
+            '3': (739, 39)
+        }
+
+        if len(display_data) == 3:
+            fname = 'display3.png'
+        else:
+            fname = f'display{len(display_data)}-{"".join(sorted(display_data.keys()))}.png'
+
+        bckg = Image.open(os.path.join('data', 'badges', fname))
+
+        for slot in display_data:
+            badge_name = f'badge{display_data[slot][0]}-{display_data[slot][1]}.png'
+            badge_buf = Image.open(os.path.join('data', 'badges', badge_name))
+
+            bckg.paste(badge_buf, slot_positions[slot], badge_buf)
+
+        buffer = io.BytesIO()
+        bckg.save(buffer, format='png', mode='wb')
+        buffer.seek(0)
+
+        return buffer
+
+    @command(cooldown=60)
+    async def badges(self, message):
+        doc = await self.get_member_info(message.author.id)
+
+        if not doc['display']:
+            return await self.mbot.send_file(message.channel, fp=os.path.join('data', 'badges', 'display0.png'))
+
+        display = {x['slot']: (x['badge_id'].split('.')[0], x['badge_id'].split('.')[1]) for x in doc['display']}
+
+        buffer = await self.generate_badges_image(display, _message=message)
+        await self.mbot.send_file(message.channel, buffer, filename='badges.png')
