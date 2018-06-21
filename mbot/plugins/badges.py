@@ -206,3 +206,72 @@ class Badges(BasePlugin):
             message.channel,
             f'**Badge has been crafted!** :ok_hand:'
         )
+
+    @command(regex='^badges display$', name='badges display')
+    async def badges_display(self, message):
+        badge_id = await self.mbot.wait_for_input(
+            message,
+            '**Which badge would you like to display? Enter two character badge ID;**',
+            check=lambda m: len(m.content) == 2
+        )
+
+        if not badge_id or not badge_id.content or badge_id.content not in BADGE_DATA:
+            return await self.mbot.send_message(
+                message.channel,
+                '*Invalid badge ID.* :cry:'
+            )
+
+        badge_id = badge_id.content
+
+        doc = await self.get_member_info(message.author.id)
+        inventory = {i['badge_id']: i['timestamp'] for i in doc['inventory']}
+
+        if f'{badge_id}.foil' not in inventory or f'{badge_id}.standard' not in inventory:
+            return await self.mbot.send_message(
+                message.channel,
+                '*You do not own this badge.* :cry:'
+            )
+
+        if f'{badge_id}.standard' in inventory and f'{badge_id}.foil' in inventory:
+            badge_type = await self.mbot.wait_for_input(
+                message,
+                '**Would you like to display the standard or foil badge?**'
+                '\nPlease reply with either `standard` or `foil`. The default is `foil`.',
+                check=lambda m: m.content in ['standard', 'foil']
+            )
+
+            badge_type = badge_type.content if badge_type else ''
+            badge = f'{badge_id}.{badge_type or "foil"}'
+        elif f'{badge_id}.standard' in inventory:
+            badge = f'{badge_id}.standard'
+        else:
+            badge = f'{badge_id}.foil'
+
+        slot = await self.mbot.wait_for_input(
+            message,
+            '**Display Slots:**\n```[1]\t[2]\t[3]```\n Which slot would you like to place the badge in? '
+            'Please enter either `1`, `2`, or `3`.',
+            check=lambda m: m.content.isdigit()
+        )
+
+        if not slot or slot.content not in ['1', '2', '3']:
+            return await self.mbot.send_message(
+                message.channel,
+                '*Unrecognised slot.* :cry:'
+            )
+
+        ret = await self.badges_db.update_one(
+            {'user_id': message.author.id, 'display.badge_id': {'$ne': badge}},
+            {'$push': {'display': {'badge_id': badge, 'timestamp': time.time(), 'slot': slot.content}}}
+        )
+
+        if ret.modified_count == 1:
+            return await self.mbot.send_message(
+                message.channel,
+                '**Badge is now on display!**'
+            )
+
+        return await self.mbot.send_message(
+            message.channel,
+            'It seems that you already have this badge on display... or something went wrong on my end...'
+        )
