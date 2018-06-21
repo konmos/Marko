@@ -216,7 +216,7 @@ class Badges(BasePlugin):
     async def badges_display(self, message):
         badge_id = await self.mbot.wait_for_input(
             message,
-            '**Which badge would you like to display? Enter two character badge ID;**',
+            '**Which badge would you like to display? Enter the two character badge ID;**',
             check=lambda m: len(m.content) == 2
         )
 
