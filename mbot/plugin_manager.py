@@ -67,6 +67,8 @@ class PluginManager(object):
         '''
         Reload all plugins and commands dynamically on a live system.
         Returns dict of all plugins and commands that were either deleted or created.
+        This does NOT reload any code running in background tasks or threads/processes.
+        This should NOT be used in a production system.
         '''
         log.debug('attempting to reload plugins')
 
