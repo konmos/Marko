@@ -73,7 +73,7 @@ def command(*, regex='', usage='', description='', name='', call_on_message=Fals
             await self.mbot.update_stats({'commands_received': 1}, server_id=message.server.id)
 
             # Check cooldown
-            if cooldown:
+            if cooldown and not self.mbot.perms_check(message.author, su=True):  # SU can bypass cooldown.
                 timestamp = history.get(wrapper.info['name'], None)
 
                 if timestamp is not None and timestamp + cooldown > time.time():
