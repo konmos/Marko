@@ -4,6 +4,7 @@ import random
 import logging
 import asyncio
 from collections import defaultdict
+from concurrent.futures import CancelledError
 
 from pymongo.errors import PyMongoError
 from discord import Channel
@@ -198,8 +199,6 @@ class Music(BasePlugin):
             except:
                 pass
 
-            self.players[server].done_playing.set()
-
     def stop_player(self, server):
         if self.players[server].player is not None:
             self.players[server].player.stop()
@@ -368,27 +367,30 @@ class Music(BasePlugin):
     async def queue_loop(self, message):
         server = message.server
 
-        await self.mbot.wait_until_ready()
+        try:
+            await self.mbot.wait_until_ready()
 
-        while not self.mbot.is_closed:
-            await self.players[server.id].done_playing.wait()
-            playlist = await self.get_playlist(server.id)
+            while not self.mbot.is_closed:
+                await self.players[server.id].done_playing.wait()
+                playlist = await self.get_playlist(server.id)
 
-            if playlist['playlist'] and self.is_voice_connected(message.server):
-                if playlist['shuffle']:
-                    item = random.choice(playlist['playlist'])
+                if playlist['playlist'] and self.is_voice_connected(message.server):
+                    if playlist['shuffle']:
+                        item = random.choice(playlist['playlist'])
+                    else:
+                        item = playlist['playlist'][0]
+
+                    await self.play_url(
+                        message, item['url'], info=item, after=self.players[server.id].done_playing.set, kill_q=False
+                    )
+                    await self.remove_from_playlist(server.id, item['id'])
                 else:
-                    item = playlist['playlist'][0]
+                    return await self.reset_playing(message.server.id)
 
-                await self.play_url(
-                    message, item['url'], info=item, after=self.players[server.id].done_playing.set, kill_q=False
-                )
-                await self.remove_from_playlist(server.id, item['id'])
-            else:
-                return await self.reset_playing(message.server.id)
-
-            self.players[server.id].done_playing.clear()
-            await asyncio.sleep(5)
+                self.players[server.id].done_playing.clear()
+                await asyncio.sleep(5)
+        except CancelledError:
+            self.players[server].done_playing.set()
 
     @command(regex='^queue start(?: (.*?))?$', name='queue start', description='start the queue',
              usage='queue start [channel]', cooldown=10)
