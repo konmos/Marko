@@ -20,7 +20,6 @@ class Reminders(BasePlugin):
             'm': 60,
         }
 
-    async def on_ready(self):
         self.mbot.loop.create_task(self.check_pending_reminders())
 
     async def check_pending_reminders(self):
