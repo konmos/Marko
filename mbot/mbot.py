@@ -159,7 +159,7 @@ class mBot(discord.Client):
         string += '```'
         choice = await self.wait_for_input(message, string, check=lambda msg: msg.content.isdigit(), cleanup=cleanup)
 
-        if choice.content in [str(i[0]) for i in option_map]:
+        if choice is not None and choice.content in [str(i[0]) for i in option_map]:
             return dict(option_map)[int(choice.content)]
 
     def perms_check(self, user, channel=None, required_perms=None, su=False):

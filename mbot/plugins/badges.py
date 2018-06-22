@@ -238,14 +238,12 @@ class Badges(BasePlugin):
             )
 
         if f'{badge_id}.standard' in inventory and f'{badge_id}.foil' in inventory:
-            badge_type = await self.mbot.wait_for_input(
+            badge_type = await self.mbot.option_selector(
                 message,
-                '**Would you like to display the standard or foil badge?**'
-                '\nPlease reply with either `standard` or `foil`. The default is `foil`.',
-                check=lambda m: m.content in ['standard', 'foil']
+                '**Would you like to display the standard or foil badge? Enter the corresponding option number;**',
+                {'standard': 'Standard Badge', 'foil': 'Foil Badge'}
             )
 
-            badge_type = badge_type.content if badge_type else ''
             badge = f'{badge_id}.{badge_type or "foil"}'
         elif f'{badge_id}.standard' in inventory:
             badge = f'{badge_id}.standard'
