@@ -341,3 +341,90 @@ class Badges(BasePlugin):
 
         buffer = await self.generate_badges_image(display, _message=message)
         await self.mbot.send_file(message.channel, buffer, filename='badges.png')
+
+    async def _trade_sell(self, message):
+        doc = await self.get_member_info(message.author.id)
+
+        fragments = {}
+        badges = {i['badge_id']: i['timestamp'] for i in doc['inventory']}
+
+        for x in doc['fragments']:
+            fragments[f'{x["badge_id"]}.standard'] = x['standard']
+            fragments[f'{x["badge_id"]}.foil'] = x['foil']
+
+        if not fragments or not badges:
+            return await self.mbot.send_message(
+                message.channel,
+                '*You do not own any tradable items...* :cry:'
+            )
+
+        trade_options = {
+            'sf': 'Standard Fragments',
+            'ff': 'Foil Fragments',
+            'sb': 'Standard Badge',
+            'fb': 'Foil Badge'
+        }
+
+        trade = await self.mbot.option_selector(
+            message,
+            '**What do you want to sell?** Enter the appropriate option number;',
+            trade_options
+        )
+
+        if trade is None:
+            return await self.mbot.send_message(
+                message.channel,
+                '*An error occurred...* :cry:'
+            )
+
+        if trade[1] == 'f':
+            _msg = '**Please enter the unique, two character ID of the fragments you want to sell.**\n' \
+                   '*this is the same ID as the ID of the badge that these fragments are used to craft*'
+        else:
+            _msg = '**Please enter the unique two character ID for the badge you want to sell.**'
+
+        badge_id = await self.mbot.wait_for_input(message, _msg, check=lambda m: len(m.content) == 2)
+
+        if badge_id is None or not badge_id.content or badge_id.content not in BADGE_DATA:
+            return await self.mbot.send_message(
+                message.channel,
+                '*Invalid ID...* :cry:'
+            )
+
+        item_type = 'foil' if trade[0] == 'f' else 'standard'
+        item = f'{badge_id.content}.{item_type}'
+
+        if trade[1] == 'f':
+            if item not in fragments:
+                return await self.mbot.send_message(
+                    message.channel,
+                    '*You do not own these fragments...* :cry:'
+                )
+
+            amount = await self.mbot.wait_for_input(
+                message,
+                f'**Enter the amount of fragments you want to sell (max {fragments[item]});**',
+                check=lambda m: m.content.isdigit() and int(m.content) > 0
+            )
+
+            amount = min(int(amount.content) if amount else 1, fragments[item])
+            final_trade = f'{amount} {trade} {badge_id.content}'
+        elif trade[1] == 'b':
+            if item not in badges:
+                return await self.mbot.send_message(
+                    message.channel,
+                    '*You do not own this badge...* :cry:'
+                )
+
+            final_trade = f'1 {trade} {badge_id.content}'
+        else:
+            return await self.mbot.send_message(
+                message.channel,
+                '*An unknown error occurred...* :thinking:'
+            )
+
+        await self.mbot.send_message(message.channel, final_trade)
+
+    @command(regex='^trade (buy|sell)$')
+    async def trade(self, message, trade_type):
+        return await self._trade_sell(message)
