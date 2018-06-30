@@ -547,10 +547,10 @@ class Badges(BasePlugin):
                     f'```{trade["description"]}```'
                 )
 
-    @command(regex='^trade sell$')
+    @command(regex='^trade sell$', name='trade sell')
     async def trade_sell(self, message):
         return await self._trade_sell(message)
 
-    @command(regex='^trade browse$')
+    @command(regex='^trade browse$', name='trade browse')
     async def trade_browse(self, message):
         return await self._browse_trades(message)
