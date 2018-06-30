@@ -2,7 +2,9 @@ import os
 import io
 import time
 import random
+from datetime import datetime, timezone
 
+import discord
 from PIL import Image
 
 from .badge_data import BADGE_DATA, BADGE_MAP
@@ -14,12 +16,20 @@ from ..utils import human_time, long_running_task
 PLAYTIME_RESET = 24 * 60 * 60
 DAILY_CAP = 2 * 60 * 60
 
+trade_options = {
+    'sf': 'Standard Fragment(s)',
+    'ff': 'Foil Fragment(s)',
+    'sb': 'Standard Badge',
+    'fb': 'Foil Badge'
+}
+
 
 class Badges(BasePlugin):
     def __init__(self, mbot):
         super().__init__(mbot)
 
         self.badges_db = self.mbot.mongo.plugin_data.badges
+        self.trade_db = self.mbot.mongo.plugin_data.trades
 
     @staticmethod
     def badge_for_game(game_name):
@@ -358,13 +368,6 @@ class Badges(BasePlugin):
                 '*You do not own any tradable items...* :cry:'
             )
 
-        trade_options = {
-            'sf': 'Standard Fragments',
-            'ff': 'Foil Fragments',
-            'sb': 'Standard Badge',
-            'fb': 'Foil Badge'
-        }
-
         trade = await self.mbot.option_selector(
             message,
             '**What do you want to sell?** Enter the appropriate option number;',
@@ -408,7 +411,7 @@ class Badges(BasePlugin):
             )
 
             amount = min(int(amount.content) if amount else 1, fragments[item])
-            final_trade = f'{amount} {trade} {badge_id.content}'
+            final_trade = amount, trade, badge_id.content
         elif trade[1] == 'b':
             if item not in badges:
                 return await self.mbot.send_message(
@@ -416,15 +419,138 @@ class Badges(BasePlugin):
                     '*You do not own this badge...* :cry:'
                 )
 
-            final_trade = f'1 {trade} {badge_id.content}'
+            final_trade = 1, trade, badge_id.content
         else:
             return await self.mbot.send_message(
                 message.channel,
                 '*An unknown error occurred...* :thinking:'
             )
 
-        await self.mbot.send_message(message.channel, final_trade)
+        _ = await self.trade_db.find_one(
+            {'user_id': message.author.id, 'trade_type': final_trade[1], 'badge_id': final_trade[2]}
+        )
 
-    @command(regex='^trade (buy|sell)$')
-    async def trade(self, message, trade_type):
+        if _:
+            return await self.mbot.send_message(
+                message.channel,
+                f'*You halve already put this item up for trade (trade ID **{str(_["_id"])})***'
+            )
+
+        description = await self.mbot.wait_for_input(
+            message,
+            '**Enter a description for this trade.**\n'
+            'The format of this description is not important, you can write anything you want, however, '
+            'it is important to mention at the very least what you want in return so other users '
+            'can make offers which are more likely to interest you, e.g. something along the lines of '
+            '*"looking for the Witcher badge (ID 00) or it\'s foil fragments, willing to negotiate"* '
+            'would be considered a good description. Remember that if your listing receives no offers within '
+            'a week, it will be deleted. :ok_hand:',
+            timeout=180
+        )
+
+        if description is not None:
+            await self.trade_db.insert_one(
+                {
+                    'user_id': message.author.id,
+                    'trade_type': final_trade[1],
+                    'badge_id': final_trade[2],
+                    'amount': final_trade[0],
+                    'description': description.content,
+                    'timestamp': time.time()
+                }
+            )
+
+            return await self.mbot.send_message(
+                message.channel,
+                ':ok_hand: **Item is now up for sale!** :dollar:',
+            )
+
+        return await self.mbot.send_message(
+            message.channel,
+            '*The item description must be supplied.*'
+        )
+
+    async def fetch_trades(self, page):
+        trades = []
+
+        async for trade in self.trade_db.find({}).skip(page * 8).limit(8):  # A page represents 8 records / trades.
+            trades.append(trade)
+
+        return trades
+
+    async def _browse_trades(self, message):
+        page = 0
+
+        while True:
+            trades = await self.fetch_trades(page)
+            next_page = await self.fetch_trades(page + 1)
+
+            if not trades:
+                break
+
+            options = {}
+            for x in enumerate(trades):
+                options[str(x[0])] = '{:<7} {:<20} {{{}}} | {}'.format(
+                    f'{x[1]["amount"]}x',
+                    f'{trade_options[x[1]["trade_type"]]}',
+                    f'{x[1]["badge_id"]}',
+                    f'{str(x[1]["_id"])}'
+                )
+
+            if next_page:
+                options['np'] = 'Next Page'
+
+            if page != 0:
+                options['pp'] = 'Previous Page'
+
+            option = await self.mbot.option_selector(
+                message,
+                '**Enter the number corresponding to the trade you want to view.**\n'
+                'The trade information will be sent in a PM to you\n'
+                'The entries follow the following format;\n'
+                '```<AMOUNT>x <TRADE TYPE> <BADGE/FRAGMENT ID> | <TRADE ID>```',
+                options, timeout=180
+            )
+
+            if not option:
+                break
+
+            if option == 'np':
+                page += 1
+            elif option == 'pp':
+                page -= 1
+            else:
+                trade = trades[int(option)]
+
+                try:
+                    author = await self.mbot.get_user_info(trade['user_id'])
+                except (discord.NotFound, discord.HTTPException):
+                    author = None
+
+                time_str = datetime.fromtimestamp(trade['timestamp']).strftime('%Y-%m-%d %H:%M:%S')
+                # noinspection PyArgumentList
+                utc_offset = datetime.now(timezone.utc).astimezone().strftime('%z')
+                badge = BADGE_DATA.get(trade['badge_id'])
+
+                await self.mbot.send_message(
+                    message.author,
+                    f'**Trade *{str(trade["_id"])}***\n'
+                    f'Trade submitted by {author.mention if author else "<USER_NOT_FOUND>"} (ID: {trade["user_id"]})'
+                    f'\nDate submitted {time_str} {utc_offset}\n\n'
+                    '**Trade Information**\n'
+                    f'  • Trade Type - `{trade["trade_type"]}` | `{trade_options[trade["trade_type"]]}`\n'
+                    f'  • Trade Vol. - `{trade["amount"]}`\n\n'
+                    '**Badge / Fragments Information**\n'
+                    f'  • Badge / Fragments ID - `{trade["badge_id"]}`\n'
+                    f'  • Games - `{badge["games"]}`\n\n'
+                    '**Trade Description**\n'
+                    f'```{trade["description"]}```'
+                )
+
+    @command(regex='^trade sell$')
+    async def trade_sell(self, message):
         return await self._trade_sell(message)
+
+    @command(regex='^trade browse$')
+    async def trade_browse(self, message):
+        return await self._browse_trades(message)
