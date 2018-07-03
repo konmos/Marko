@@ -142,15 +142,28 @@ class mBot(discord.Client):
 
         return resp
 
-    async def option_selector(self, message, header, options, cleanup=True, timeout=20):
+    async def option_selector(self, message, header, options, cleanup=True, timeout=20, pp=False, np=False):
         '''
         Utility function to allow selection of options in discord text chat.
         :param header: The message to display at the top.
         :param options: Dictionary of the options; the key is the internal option name/value
             and items represent the readable option text that will be displayed.
+        :param cleanup: bool indicating if the messages sent should be deleted once finished
+        :param timeout: time after which the menu automatically closes
+        :param pp: If this is `True` the option `{'pp': 'Previous Page'}` is added to the
+            options dict. This is useful for handling paged options.
+        :param np: If this is `True` the option `{'np': 'Next Page'}` is added to the
+            options dict. This is useful for handling paged options.
         '''
         string = f'{header}\n\n```'
-        options = OrderedDict(sorted(options.items(), key=lambda t: t[0]))
+        options = OrderedDict(sorted(options.items(), key=lambda t: t[1]))
+
+        if pp:
+            options['pp'] = '# Previous Page [<]'
+
+        if np:
+            options['np'] = '# Next Page [>]'
+
         option_map = [(x, option) for x, option in enumerate(options)]
 
         for x, option in option_map:

@@ -17,10 +17,10 @@ PLAYTIME_RESET = 24 * 60 * 60
 DAILY_CAP = 2 * 60 * 60
 
 trade_options = {
-    'sf': 'Standard Fragment(s)',
-    'ff': 'Foil Fragment(s)',
-    'sb': 'Standard Badge',
-    'fb': 'Foil Badge'
+    'sf': 'Fragment(s) [Standard]',
+    'ff': 'Fragment(s) [Foil]',
+    'sb': 'Badge [Standard]',
+    'fb': 'Badge [Foil]'
 }
 
 
@@ -166,45 +166,85 @@ class Badges(BasePlugin):
             f'**Your total playtime for this session is {int(doc["total_playtime"] / 60)} minute(s).**'
         )
 
-    @command(regex='^badges craft( foil)? (.*?)$', name='badges craft', usage='badges craft [foil] <badge_id>')
-    async def badges_craft(self, message, foil, badge_id):
-        if badge_id not in BADGE_DATA:
-            return await self.mbot.send_message(
+    async def _browse_badges(self, message, header='', craftable_only=False):
+        badges, page = [], 0
+        doc = await self.get_member_info(message.author.id)
+        fragments = {x['badge_id']: (x['standard'], x['foil']) for x in doc['fragments']}
+
+        for badge in BADGE_DATA.items():
+            if craftable_only and (not badge[1]['craftable'] or not fragments.get(badge[0])):
+                continue
+
+            if craftable_only and (fragments[badge[0]][0] < badge[1]['standard_cost']['fragments']
+                or fragments[badge[0]][1] < badge[1]['standard_cost']['foil_fragments']): pass
+            else:
+                badges.append((f'{badge[0]}.standard', f'{badge[1]["badge_name"]} [Standard]'))
+
+            if badge[1]['has_foil']:
+                if craftable_only and (fragments[badge[0]][0] < badge[1]['foil_cost']['fragments']
+                    or fragments[badge[0]][1] < badge[1]['foil_cost']['foil_fragments']): pass
+                else:
+                    badges.append((f'{badge[0]}.foil', f'{badge[1]["badge_name"]} [Foil]'))
+
+        badges = sorted(badges, key=lambda t: t[1])
+
+        if not badges:
+            await self.mbot.send_message(
                 message.channel,
-                '**I could not find that badge...** :cry:'
+                f'**{"You have no resources to craft any badges" if craftable_only else "Something went wrong..."}**'
             )
 
+            return
+
+        while True:
+            items = badges[page * 8: (page * 8) + 8]
+            next_page = badges[(page + 1) * 8: ((page + 1) * 8) + 8]
+
+            options = dict(items)
+
+            option = await self.mbot.option_selector(
+                message, header, options, np=bool(next_page), pp=page != 0, timeout=180
+            )
+
+            if not option:
+                await self.mbot.send_message(
+                    message.channel, '**Closing menu.**'
+                )
+
+                break
+
+            if option == 'np':
+                page += 1
+            elif option == 'pp':
+                page -= 1
+            else:
+                yield option
+
+    @command(regex='^badges craft$', name='badges craft', usage='badges craft')
+    async def badges_craft(self, message):
+        header = '**Showing Badges You Can Craft**\nEnter an option number from the menu to craft badges or move pages.'
+
+        async for b in self._browse_badges(message, header=header, craftable_only=True):
+            break
+        else:
+            return
+
+        badge_id, badge_type = b.split('.')
         badge = BADGE_DATA[badge_id]
 
-        if not badge['craftable']:
-            return await self.mbot.send_message(
-                message.channel,
-                '**This badge is not craftable...**'
-            )
-
         doc = await self.get_member_info(message.author.id)
-        inventory = {i['badge_id']: i['timestamp'] for i in doc['inventory']}
-        inventory_id = badge_id + ('.foil' if foil else '.standard')
+        inventory = [i['badge_id'] for i in doc['inventory']]
 
-        if inventory_id in inventory:
+        if b in inventory:
             return await self.mbot.send_message(
                 message.channel,
                 '**You already own this badge.**'
             )
 
-        fragments = {b['badge_id']: (b['standard'], b['foil']) for b in doc['fragments']}
-        wallet = fragments.get(badge_id, (0, 0))
-
-        if not foil:
+        if badge_type == 'standard':
             cost = badge['standard_cost']
         else:
             cost = badge['foil_cost']
-
-        if cost['fragments'] > wallet[0] or cost['foil_fragments'] > wallet[1]:
-            return await self.mbot.send_message(
-                message.channel,
-                '**Not enough fragments to craft this badge... Play more games to earn more fragments.**'
-            )
 
         # Badge exists and the user has enough fragments to craft it;
         await self.badges_db.update_one(
@@ -214,7 +254,7 @@ class Badges(BasePlugin):
 
         await self.badges_db.update_one(
             {'user_id': message.author.id, 'inventory.badge_id': {'$ne': badge_id}},
-            {'$push': {'inventory': {'badge_id': inventory_id, 'timestamp': time.time()}}}
+            {'$push': {'inventory': {'badge_id': b, 'timestamp': time.time()}}}
         )
 
         await self.mbot.send_message(
@@ -224,41 +264,17 @@ class Badges(BasePlugin):
 
     @command(regex='^badges display$', name='badges display')
     async def badges_display(self, message):
-        badge_id = await self.mbot.wait_for_input(
-            message,
-            '**Which badge would you like to display? Enter the two character badge ID;**',
-            check=lambda m: len(m.content) == 2
-        )
+        header = '**Your Badges**\nEnter an option number from the menu to display a badge or move pages.'
 
-        if not badge_id or not badge_id.content or badge_id.content not in BADGE_DATA:
-            return await self.mbot.send_message(
-                message.channel,
-                '*Invalid badge ID.* :cry:'
-            )
-
-        badge_id = badge_id.content
-
-        doc = await self.get_member_info(message.author.id)
-        inventory = {i['badge_id']: i['timestamp'] for i in doc['inventory']}
-
-        if f'{badge_id}.foil' not in inventory or f'{badge_id}.standard' not in inventory:
-            return await self.mbot.send_message(
-                message.channel,
-                '*You do not own this badge.* :cry:'
-            )
-
-        if f'{badge_id}.standard' in inventory and f'{badge_id}.foil' in inventory:
-            badge_type = await self.mbot.option_selector(
-                message,
-                '**Would you like to display the standard or foil badge? Enter the corresponding option number;**',
-                {'standard': 'Standard Badge', 'foil': 'Foil Badge'}
-            )
-
-            badge = f'{badge_id}.{badge_type or "foil"}'
-        elif f'{badge_id}.standard' in inventory:
-            badge = f'{badge_id}.standard'
+        async for b in self._browse_inventory(message, header=header, fragments=False):
+            break
         else:
-            badge = f'{badge_id}.foil'
+            return
+
+        b = b.split(' ')
+        badge_id = b[1]
+        badge = f'{badge_id}.{"standard" if b[0][0] == "s" else "foil"}'
+        doc = await self.get_member_info(message.author.id)
 
         display = {x['badge_id']: x['slot'] for x in doc['display']}
 
@@ -352,89 +368,147 @@ class Badges(BasePlugin):
         buffer = await self.generate_badges_image(display, _message=message)
         await self.mbot.send_file(message.channel, buffer, filename='badges.png')
 
-    async def _trade_sell(self, message):
+    async def _browse_inventory(self, message, header='', fragments=True, badges=True):
         doc = await self.get_member_info(message.author.id)
+        inventory, page = [], 0
 
-        fragments = {}
-        badges = {i['badge_id']: i['timestamp'] for i in doc['inventory']}
-
-        for x in doc['fragments']:
-            fragments[f'{x["badge_id"]}.standard'] = x['standard']
-            fragments[f'{x["badge_id"]}.foil'] = x['foil']
-
-        if not fragments or not badges:
-            return await self.mbot.send_message(
-                message.channel,
-                '*You do not own any tradable items...* :cry:'
-            )
-
-        trade = await self.mbot.option_selector(
-            message,
-            '**What do you want to sell?** Enter the appropriate option number;',
-            trade_options
-        )
-
-        if trade is None:
-            return await self.mbot.send_message(
-                message.channel,
-                '*An error occurred...* :cry:'
-            )
-
-        if trade[1] == 'f':
-            _msg = '**Please enter the unique, two character ID of the fragments you want to sell.**\n' \
-                   '*this is the same ID as the ID of the badge that these fragments are used to craft*'
-        else:
-            _msg = '**Please enter the unique two character ID for the badge you want to sell.**'
-
-        badge_id = await self.mbot.wait_for_input(message, _msg, check=lambda m: len(m.content) == 2)
-
-        if badge_id is None or not badge_id.content or badge_id.content not in BADGE_DATA:
-            return await self.mbot.send_message(
-                message.channel,
-                '*Invalid ID...* :cry:'
-            )
-
-        item_type = 'foil' if trade[0] == 'f' else 'standard'
-        item = f'{badge_id.content}.{item_type}'
-
-        if trade[1] == 'f':
-            if item not in fragments:
-                return await self.mbot.send_message(
-                    message.channel,
-                    '*You do not own these fragments...* :cry:'
+        if badges:
+            for badge in doc['inventory']:
+                badge_id, badge_type = badge['badge_id'].split('.')
+                badge_data = BADGE_DATA[badge_id]
+                inventory.append(
+                    (f'{badge_type[0]}b {badge_id} 1', f'{badge_data["badge_name"]} Badge [{badge_type.title()}]')
                 )
 
-            amount = await self.mbot.wait_for_input(
+        if fragments:
+            for fragment in doc['fragments']:
+                badge_data = BADGE_DATA[fragment['badge_id']]
+
+                if fragment['standard']:
+                    inventory.append(
+                        (f'sf {fragment["badge_id"]} {fragment["standard"]}',
+                         f'{badge_data["badge_name"]} Fragment(s) [Standard] {{{fragment["standard"]}}}')
+                    )
+
+                if fragment['foil']:
+                    inventory.append(
+                        (f'ff {fragment["badge_id"]} {fragment["foil"]}',
+                         f'{badge_data["badge_name"]} Fragment(s) [Foil] {{{fragment["foil"]}}}')
+                    )
+
+        if not inventory:
+            await self.mbot.send_message(
+                message.channel, '**You have nothing in your inventory.**'
+            )
+
+            return
+
+        inventory = sorted(inventory, key=lambda t: t[1])
+
+        while True:
+            items = inventory[page * 8: (page * 8) + 8]
+            next_page = inventory[(page + 1) * 8: ((page + 1) * 8) + 8]
+
+            options = dict(items)
+
+            option = await self.mbot.option_selector(
+                message, header, options, np=bool(next_page), pp=page != 0, timeout=180
+            )
+
+            if not option:
+                await self.mbot.send_message(
+                    message.channel, '**Closing menu.**'
+                )
+
+                break
+
+            if option == 'np':
+                page += 1
+            elif option == 'pp':
+                page -= 1
+            else:
+                yield option
+
+    async def fetch_trades(self, page):
+        trades = []
+
+        async for trade in self.trade_db.find({}).skip(page * 8).limit(8):  # A page represents 8 records / trades.
+            trades.append(trade)
+
+        return trades
+
+    async def _browse_trades(self, message, header=''):
+        page = 0
+
+        while True:
+            trades = await self.fetch_trades(page)
+            next_page = await self.fetch_trades(page + 1)
+
+            if not trades:
+                await self.mbot.send_message(
+                    message.channel, '**It seems that nobody is trading atm.**'
+                )
+
+                break
+
+            options = {}
+            for x in enumerate(trades):
+                options[str(x[0])] = '{:<7} {:<22} {{{}}}'.format(
+                    f'{x[1]["amount"]}x',
+                    f'{trade_options[x[1]["trade_type"]]}',
+                    BADGE_DATA[x[1]["badge_id"]]['badge_name']
+                )
+
+            option = await self.mbot.option_selector(
                 message,
-                f'**Enter the amount of fragments you want to sell (max {fragments[item]});**',
-                check=lambda m: m.content.isdigit() and int(m.content) > 0
+                f'**Badge & Fragment Trades**\n{header}',
+                options, timeout=180, pp=page != 0, np=bool(next_page)
             )
 
-            amount = min(int(amount.content) if amount else 1, fragments[item])
-            final_trade = amount, trade, badge_id.content
-        elif trade[1] == 'b':
-            if item not in badges:
-                return await self.mbot.send_message(
-                    message.channel,
-                    '*You do not own this badge...* :cry:'
+            if not option:
+                await self.mbot.send_message(
+                    message.channel, '**Closing menu.**'
                 )
 
-            final_trade = 1, trade, badge_id.content
+                break
+
+            if option == 'np':
+                page += 1
+            elif option == 'pp':
+                page -= 1
+            else:
+                yield trades[int(option)]
+
+    @command(regex='^trade sell$', name='trade sell')
+    async def trade_sell(self, message):
+        header = '**Your Inventory**\nEnter the option number of the item you want to put up for trade.'
+
+        async for t in self._browse_inventory(message, header=header):
+            break
         else:
-            return await self.mbot.send_message(
-                message.channel,
-                '*An unknown error occurred...* :thinking:'
-            )
+            return
+
+        t = t.split(' ')
+        trade, badge_id, max_amount, amount = t[0], t[1], int(t[2]), 1
 
         _ = await self.trade_db.find_one(
-            {'user_id': message.author.id, 'trade_type': final_trade[1], 'badge_id': final_trade[2]}
+            {'user_id': message.author.id, 'trade_type': trade, 'badge_id': badge_id}
         )
 
         if _:
             return await self.mbot.send_message(
                 message.channel,
-                f'*You halve already put this item up for trade (trade ID **{str(_["_id"])})***'
+                f'*You have already put this item up for trade (trade ID **{str(_["_id"])}**)*'
             )
+
+        if trade[1] == 'f':
+            amount = await self.mbot.wait_for_input(
+                message,
+                f'**Enter the amount of fragments you want to sell (max {max_amount});**',
+                check=lambda m: m.content.isdigit() and int(m.content) > 0
+            )
+
+            amount = min(int(amount.content) if amount else 1, max_amount)
 
         description = await self.mbot.wait_for_input(
             message,
@@ -452,11 +526,12 @@ class Badges(BasePlugin):
             await self.trade_db.insert_one(
                 {
                     'user_id': message.author.id,
-                    'trade_type': final_trade[1],
-                    'badge_id': final_trade[2],
-                    'amount': final_trade[0],
+                    'trade_type': trade,
+                    'badge_id': badge_id,
+                    'amount': amount,
                     'description': description.content,
-                    'timestamp': time.time()
+                    'timestamp': time.time(),
+                    'offers': []
                 }
             )
 
@@ -470,87 +545,33 @@ class Badges(BasePlugin):
             '*The item description must be supplied.*'
         )
 
-    async def fetch_trades(self, page):
-        trades = []
-
-        async for trade in self.trade_db.find({}).skip(page * 8).limit(8):  # A page represents 8 records / trades.
-            trades.append(trade)
-
-        return trades
-
-    async def _browse_trades(self, message):
-        page = 0
-
-        while True:
-            trades = await self.fetch_trades(page)
-            next_page = await self.fetch_trades(page + 1)
-
-            if not trades:
-                break
-
-            options = {}
-            for x in enumerate(trades):
-                options[str(x[0])] = '{:<7} {:<20} {{{}}} | {}'.format(
-                    f'{x[1]["amount"]}x',
-                    f'{trade_options[x[1]["trade_type"]]}',
-                    f'{x[1]["badge_id"]}',
-                    f'{str(x[1]["_id"])}'
-                )
-
-            if next_page:
-                options['np'] = 'Next Page'
-
-            if page != 0:
-                options['pp'] = 'Previous Page'
-
-            option = await self.mbot.option_selector(
-                message,
-                '**Enter the number corresponding to the trade you want to view.**\n'
-                'The trade information will be sent in a PM to you\n'
-                'The entries follow the following format;\n'
-                '```<AMOUNT>x <TRADE TYPE> <BADGE/FRAGMENT ID> | <TRADE ID>```',
-                options, timeout=180
-            )
-
-            if not option:
-                break
-
-            if option == 'np':
-                page += 1
-            elif option == 'pp':
-                page -= 1
-            else:
-                trade = trades[int(option)]
-
-                try:
-                    author = await self.mbot.get_user_info(trade['user_id'])
-                except (discord.NotFound, discord.HTTPException):
-                    author = None
-
-                time_str = datetime.fromtimestamp(trade['timestamp']).strftime('%Y-%m-%d %H:%M:%S')
-                # noinspection PyArgumentList
-                utc_offset = datetime.now(timezone.utc).astimezone().strftime('%z')
-                badge = BADGE_DATA.get(trade['badge_id'])
-
-                await self.mbot.send_message(
-                    message.author,
-                    f'**Trade *{str(trade["_id"])}***\n'
-                    f'Trade submitted by {author.mention if author else "<USER_NOT_FOUND>"} (ID: {trade["user_id"]})'
-                    f'\nDate submitted {time_str} {utc_offset}\n\n'
-                    '**Trade Information**\n'
-                    f'  • Trade Type - `{trade["trade_type"]}` | `{trade_options[trade["trade_type"]]}`\n'
-                    f'  • Trade Vol. - `{trade["amount"]}`\n\n'
-                    '**Badge / Fragments Information**\n'
-                    f'  • Badge / Fragments ID - `{trade["badge_id"]}`\n'
-                    f'  • Games - `{badge["games"]}`\n\n'
-                    '**Trade Description**\n'
-                    f'```{trade["description"]}```'
-                )
-
-    @command(regex='^trade sell$', name='trade sell')
-    async def trade_sell(self, message):
-        return await self._trade_sell(message)
-
     @command(regex='^trade browse$', name='trade browse')
     async def trade_browse(self, message):
-        return await self._browse_trades(message)
+        header = '**Enter an option number from the menu.**\n' \
+                 'The trade information will be sent in a PM to you\n' \
+
+        async for trade in self._browse_trades(message, header):
+            try:
+                author = await self.mbot.get_user_info(trade['user_id'])
+            except (discord.NotFound, discord.HTTPException):
+                author = None
+
+            time_str = datetime.fromtimestamp(trade['timestamp']).strftime('%Y-%m-%d %H:%M:%S')
+            # noinspection PyArgumentList
+            utc_offset = datetime.now(timezone.utc).astimezone().strftime('%z')
+            badge = BADGE_DATA.get(trade['badge_id'])
+
+            await self.mbot.send_message(
+                message.author,
+                f'**Trade *{str(trade["_id"])}***\n'
+                f'Trade submitted by {author.mention if author else "<USER_NOT_FOUND>"} (ID: {trade["user_id"]})'
+                f'\nDate submitted {time_str} {utc_offset}\n\n'
+                '**Trade Information**\n'
+                f'  • Trade Type - `{trade["trade_type"]}` | `{trade_options[trade["trade_type"]]}`\n'
+                f'  • Trade Vol. - `{trade["amount"]}`\n\n'
+                '**Badge / Fragments Information**\n'
+                f'  • Badge / Fragments ID - `{trade["badge_id"]}`\n'
+                f'  • Games - `{badge["games"]}`\n\n'
+                '**Trade Description**\n'
+                f'```{trade["description"]}```'
+            )
