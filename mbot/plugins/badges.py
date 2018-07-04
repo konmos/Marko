@@ -254,7 +254,7 @@ class Badges(BasePlugin):
 
         await self.badges_db.update_one(
             {'user_id': message.author.id, 'inventory.badge_id': {'$ne': badge_id}},
-            {'$push': {'inventory': {'badge_id': b, 'timestamp': time.time()}}}
+            {'$push': {'inventory': {'badge_id': b, 'time_crafted': time.time()}}}
         )
 
         await self.mbot.send_message(
@@ -315,7 +315,7 @@ class Badges(BasePlugin):
 
         ret = await self.badges_db.update_one(
             {'user_id': message.author.id, 'display.badge_id': {'$ne': badge}},
-            {'$push': {'display': {'badge_id': badge, 'timestamp': time.time(), 'slot': slot.content}}}
+            {'$push': {'display': {'badge_id': badge, 'time_displayed': time.time(), 'slot': slot.content}}}
         )
 
         if ret.modified_count == 1:
@@ -530,7 +530,7 @@ class Badges(BasePlugin):
                     'badge_id': badge_id,
                     'amount': amount,
                     'description': description.content,
-                    'timestamp': time.time(),
+                    'time_submitted': time.time(),
                     'offers': []
                 }
             )
@@ -556,7 +556,7 @@ class Badges(BasePlugin):
             except (discord.NotFound, discord.HTTPException):
                 author = None
 
-            time_str = datetime.fromtimestamp(trade['timestamp']).strftime('%Y-%m-%d %H:%M:%S')
+            time_str = datetime.fromtimestamp(trade['time_submitted']).strftime('%Y-%m-%d %H:%M:%S')
             # noinspection PyArgumentList
             utc_offset = datetime.now(timezone.utc).astimezone().strftime('%z')
             badge = BADGE_DATA.get(trade['badge_id'])
