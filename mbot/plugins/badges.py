@@ -295,7 +295,7 @@ class Badges(BasePlugin):
 
         await self.mbot.send_message(
             message.channel,
-            f':ok_hand: **Upgraded badge to level *{badges[f"{badge_id}.standard"] + 2}*.**'
+            f':ok_hand: **Upgraded badge to level *{badges[f"{badge_id}.standard"] + 1}*.**'
         )
 
     @command(regex='^badges display$', name='badges display')
@@ -420,7 +420,8 @@ class Badges(BasePlugin):
 
                 badge_data = BADGE_DATA[badge_id]
                 inventory.append(
-                    (f'{badge_type[0]}b {badge_id} 1', f'{badge_data["badge_name"]} Badge [{badge_type.title()}]')
+                    (f'{badge_type[0]}b {badge_id} 1 {badge["level"]}',
+                     f'{badge_data["badge_name"]} Badge [{badge_type.title()}] {{#{badge["level"]}}}')
                 )
 
         if fragments:
@@ -574,6 +575,7 @@ class Badges(BasePlugin):
                     'user_id': message.author.id,
                     'trade_type': trade,
                     'badge_id': badge_id,
+                    'badge_level': int(t[3]) if trade[1] == 'b' else None,
                     'amount': amount,
                     'description': description.content,
                     'time_submitted': time.time(),
@@ -616,7 +618,9 @@ class Badges(BasePlugin):
                 f'  • Trade Type - `{trade["trade_type"]}` | `{trade_options[trade["trade_type"]]}`\n'
                 f'  • Trade Vol. - `{trade["amount"]}`\n\n'
                 '**Badge / Fragments Information**\n'
+                f'  • Badge / Fragments Name - `{badge["badge_name"]}`\n'
                 f'  • Badge / Fragments ID - `{trade["badge_id"]}`\n'
+                f'  • Badge Level - `{trade["badge_level"] if trade["badge_level"] is not None else "N/A"}`\n'
                 f'  • Games - `{badge["games"]}`\n\n'
                 '**Trade Description**\n'
                 f'```{trade["description"]}```'
