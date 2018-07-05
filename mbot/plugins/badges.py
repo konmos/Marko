@@ -50,6 +50,12 @@ class Badges(BasePlugin):
             'display': []
         }
 
+    async def update_fragments(self, user_id, badge_id, fragments=0, foil_fragments=0):
+        await self.badges_db.update_one(
+            {'user_id': user_id, 'fragments': {'$elemMatch': {'badge_id': badge_id}}},
+            {'$inc': {'fragments.$.standard': fragments, 'fragments.$.foil': foil_fragments}}
+        )
+
     async def drop_rewards(self, user_id, badge_id, seconds_played):
         await self.badges_db.update_one(
             {'user_id': user_id, 'fragments.badge_id': {'$ne': badge_id}},
@@ -66,10 +72,7 @@ class Badges(BasePlugin):
             else:
                 fragments += 1
 
-        await self.badges_db.update_one(
-            {'user_id': user_id, 'fragments': {'$elemMatch': {'badge_id': badge_id}}},
-            {'$inc': {'fragments.$.standard': fragments, 'fragments.$.foil': foil_fragments}}
-        )
+        await self.update_fragments(user_id, badge_id, fragments, foil_fragments)
 
     async def get_member_info(self, user_id):
         doc = await self.badges_db.find_one({'user_id': user_id})
@@ -247,19 +250,52 @@ class Badges(BasePlugin):
             cost = badge['foil_cost']
 
         # Badge exists and the user has enough fragments to craft it;
-        await self.badges_db.update_one(
-            {'user_id': message.author.id, 'fragments': {'$elemMatch': {'badge_id': badge_id}}},
-            {'$inc': {'fragments.$.standard': -cost['fragments'], 'fragments.$.foil': -cost['foil_fragments']}}
-        )
+        await self.update_fragments(message.author.id, badge_id, -cost['fragments'], -cost['foil_fragments'])
 
         await self.badges_db.update_one(
             {'user_id': message.author.id, 'inventory.badge_id': {'$ne': badge_id}},
-            {'$push': {'inventory': {'badge_id': b, 'time_crafted': time.time()}}}
+            {'$push': {'inventory': {'badge_id': b, 'time_crafted': time.time(), 'level': 0}}}
         )
 
         await self.mbot.send_message(
             message.channel,
             f'**Badge has been crafted!** :ok_hand:'
+        )
+
+    @command(regex='^badges upgrade$', name='badges upgrade')
+    async def badges_upgrade(self, message):
+        header = '**Which Badge Would You Like To Upgrade?**'
+        async for b in self._browse_inventory(message, header=header, fragments=False, foil=False):
+            break
+        else:
+            return
+
+        badge_id = b.split(' ')[1]
+        cost = BADGE_DATA[badge_id]['standard_cost']
+        doc = await self.get_member_info(message.author.id)
+        badges = {x['badge_id']: x['level'] for x in doc['inventory']}
+        fragments = {x['badge_id']: (x['standard'], x['foil']) for x in doc['fragments']}.get(badge_id)
+
+        if not fragments or fragments[0] < cost['fragments'] or fragments[1] < cost['foil_fragments']:
+            return await self.mbot.send_message(
+                message.channel, '**You do not have enough fragments to upgrade this badge!**'
+            )
+
+        if badges[f'{badge_id}.standard'] == 4:
+            return await self.mbot.send_message(
+                message.channel, '**This badge cannot be upgraded any further!**'
+            )
+
+        await self.update_fragments(message.author.id, badge_id, -cost['fragments'], -cost['foil_fragments'])
+
+        await self.badges_db.update_one(
+            {'user_id': message.author.id, 'inventory': {'$elemMatch': {'badge_id': f'{badge_id}.standard'}}},
+            {'$inc': {'inventory.$.level': 1}}
+        )
+
+        await self.mbot.send_message(
+            message.channel,
+            f':ok_hand: **Upgraded badge to level *{badges[f"{badge_id}.standard"] + 2}*.**'
         )
 
     @command(regex='^badges display$', name='badges display')
@@ -345,7 +381,7 @@ class Badges(BasePlugin):
         bckg = Image.open(os.path.join('data', 'badges', fname))
 
         for slot in display_data:
-            badge_name = f'badge{display_data[slot][0]}-{display_data[slot][1]}.png'
+            badge_name = f'badge{display_data[slot][0]}-{display_data[slot][1]}{display_data[slot][2]}.png'
             badge_buf = Image.open(os.path.join('data', 'badges', badge_name))
 
             bckg.paste(badge_buf, slot_positions[slot], badge_buf)
@@ -359,22 +395,29 @@ class Badges(BasePlugin):
     @command(cooldown=60)
     async def badges(self, message):
         doc = await self.get_member_info(message.author.id)
+        levels = {x['badge_id']: x['level'] for x in doc['inventory']}
 
         if not doc['display']:
             return await self.mbot.send_file(message.channel, fp=os.path.join('data', 'badges', 'display0.png'))
 
-        display = {x['slot']: (x['badge_id'].split('.')[0], x['badge_id'].split('.')[1]) for x in doc['display']}
+        display = {x['slot']: (
+            x['badge_id'].split('.')[0], x['badge_id'].split('.')[1], levels[x['badge_id']]
+        ) for x in doc['display']}
 
         buffer = await self.generate_badges_image(display, _message=message)
         await self.mbot.send_file(message.channel, buffer, filename='badges.png')
 
-    async def _browse_inventory(self, message, header='', fragments=True, badges=True):
+    async def _browse_inventory(self, message, header='', fragments=True, badges=True, foil=True):
         doc = await self.get_member_info(message.author.id)
         inventory, page = [], 0
 
         if badges:
             for badge in doc['inventory']:
                 badge_id, badge_type = badge['badge_id'].split('.')
+
+                if not foil and badge_type == 'foil':
+                    continue
+
                 badge_data = BADGE_DATA[badge_id]
                 inventory.append(
                     (f'{badge_type[0]}b {badge_id} 1', f'{badge_data["badge_name"]} Badge [{badge_type.title()}]')
@@ -391,6 +434,9 @@ class Badges(BasePlugin):
                     )
 
                 if fragment['foil']:
+                    if not foil:
+                        continue
+
                     inventory.append(
                         (f'ff {fragment["badge_id"]} {fragment["foil"]}',
                          f'{badge_data["badge_name"]} Fragment(s) [Foil] {{{fragment["foil"]}}}')
