@@ -74,6 +74,26 @@ class Badges(BasePlugin):
 
         await self.update_fragments(user_id, badge_id, fragments, foil_fragments)
 
+    async def set_trading(self, trade, badge_id, user_id, amount=None, unset=False):
+        _type = "foil" if trade[0] == "f" else "standard"
+
+        if trade[1] == 'f':
+            if trade[0] == 'f':
+                await self.update_fragments(user_id, badge_id, foil_fragments=amount)
+            else:
+                await self.update_fragments(user_id, badge_id, fragments=amount)
+
+            await self.badges_db.update_one(
+                {'user_id': user_id, 'fragments': {'$elemMatch': {'badge_id': badge_id}}},
+                {'$set' if not unset else '$unset': {f'fragments.$.trading_{_type}': abs(amount)}}
+            )
+        elif trade[1] == 'b':
+            _id = f'{badge_id}.{_type}'
+            await self.badges_db.update_one(
+                {'user_id': user_id, 'inventory': {'$elemMatch': {'badge_id': _id}}},
+                {'$set' if not unset else '$unset': {f'inventory.$.trading': True}}
+            )
+
     async def get_member_info(self, user_id):
         doc = await self.badges_db.find_one({'user_id': user_id})
 
@@ -273,15 +293,22 @@ class Badges(BasePlugin):
         badge_id = b.split(' ')[1]
         cost = BADGE_DATA[badge_id]['standard_cost']
         doc = await self.get_member_info(message.author.id)
-        badges = {x['badge_id']: x['level'] for x in doc['inventory']}
+        badges = {x['badge_id']: (x['level'], x.get('trading', False)) for x in doc['inventory']}
         fragments = {x['badge_id']: (x['standard'], x['foil']) for x in doc['fragments']}.get(badge_id)
+
+        if badges[f'{badge_id}.standard'][1]:
+            return await self.mbot.send_message(
+                message.channel,
+                '**You cannot upgrade this badge while it is being traded!**\n'
+                'Please wait until an offer to your trade is made, or cancel the trade.'
+            )
 
         if not fragments or fragments[0] < cost['fragments'] or fragments[1] < cost['foil_fragments']:
             return await self.mbot.send_message(
                 message.channel, '**You do not have enough fragments to upgrade this badge!**'
             )
 
-        if badges[f'{badge_id}.standard'] == 4:
+        if badges[f'{badge_id}.standard'][0] == 4:
             return await self.mbot.send_message(
                 message.channel, '**This badge cannot be upgraded any further!**'
             )
@@ -295,7 +322,7 @@ class Badges(BasePlugin):
 
         await self.mbot.send_message(
             message.channel,
-            f':ok_hand: **Upgraded badge to level *{badges[f"{badge_id}.standard"] + 1}*.**'
+            f':ok_hand: **Upgraded badge to level *{badges[f"{badge_id}.standard"][0] + 1}*.**'
         )
 
     @command(regex='^badges display$', name='badges display')
@@ -476,24 +503,27 @@ class Badges(BasePlugin):
             else:
                 yield option
 
-    async def fetch_trades(self, page):
-        trades = []
+    async def fetch_trades(self, page, user_id=None):
+        trades, query = [], {}
 
-        async for trade in self.trade_db.find({}).skip(page * 8).limit(8):  # A page represents 8 records / trades.
+        if user_id is not None:
+            query['user_id'] = user_id
+
+        async for trade in self.trade_db.find(query).skip(page * 8).limit(8):  # A page represents 8 records / trades.
             trades.append(trade)
 
         return trades
 
-    async def _browse_trades(self, message, header=''):
+    async def _browse_trades(self, message, header='', user_id=None):
         page = 0
 
         while True:
-            trades = await self.fetch_trades(page)
-            next_page = await self.fetch_trades(page + 1)
+            trades = await self.fetch_trades(page, user_id=user_id)
+            next_page = await self.fetch_trades(page + 1, user_id=user_id)
 
             if not trades:
                 await self.mbot.send_message(
-                    message.channel, '**It seems that nobody is trading atm.**'
+                    message.channel, '**I couldn\'t find any trades.**'
                 )
 
                 break
@@ -582,6 +612,8 @@ class Badges(BasePlugin):
                     'offers': []
                 }
             )
+
+            await self.set_trading(trade, badge_id, message.author.id, -amount)
 
             return await self.mbot.send_message(
                 message.channel,
