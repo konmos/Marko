@@ -625,6 +625,25 @@ class Badges(BasePlugin):
             '*The item description must be supplied.*'
         )
 
+    @command(regex='^trade cancel$', name='trade cancel')
+    async def trade_cancel(self, message):
+        header = 'Your trades\nEnter an appropriate option number to cancel a trade.'
+
+        async for trade in self._browse_trades(message, header, user_id=message.author.id):
+            break
+        else:
+            return
+
+        await self.set_trading(
+            trade["trade_type"], trade["badge_id"], message.author.id, amount=trade["amount"], unset=True
+        )
+
+        await self.trade_db.delete_one(
+            {'_id': trade["_id"]}
+        )
+
+        await self.mbot.send_message(message.channel, '**Trade cancelled!** :ok_hand:')
+
     @command(regex='^trade browse$', name='trade browse')
     async def trade_browse(self, message):
         header = '**Enter an option number from the menu.**\n' \
