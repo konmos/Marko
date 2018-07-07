@@ -94,6 +94,19 @@ class Badges(BasePlugin):
                 {'$set' if not unset else '$unset': {f'inventory.$.trading': True}}
             )
 
+    async def remove_badge_from_display(self, user_id, badge):
+        await self.badges_db.update_one(
+            {'user_id': user_id},
+            {'$pull': {'display': {'badge_id': badge}}}
+        )
+
+    async def remove_badge_from_inventory(self, user_id, badge):
+        await self.remove_badge_from_display(user_id, badge)
+        await self.badges_db.update_one(
+            {'user_id': user_id},
+            {'$pull': {'inventory': {'badge_id': badge}}}
+        )
+
     async def get_member_info(self, user_id):
         doc = await self.badges_db.find_one({'user_id': user_id})
 
@@ -325,6 +338,43 @@ class Badges(BasePlugin):
             f':ok_hand: **Upgraded badge to level *{badges[f"{badge_id}.standard"][0] + 1}*.**'
         )
 
+    @command(regex='^badges dismantle$', name='badges dismantle')
+    async def badges_dismantle(self, message):
+        async for b in self._browse_inventory(message, '**Select the badge you want to dismantle**', fragments=False):
+            break
+        else:
+            return
+
+        badge = b.split(' ')
+        badge_id, badge_level = badge[1], badge[3]
+        doc = await self.get_member_info(message.author.id)
+        trading = {x['badge_id']: x.get('trading', False) for x in doc['inventory']}
+
+        if trading[f'{badge_id}.{"standard" if badge[0][0] == "s" else "foil"}']:
+            return await self.mbot.send_message(
+                message.channel,
+                '**You cannot dismantle this badge while it is being traded!**\n'
+                'Please wait until an offer to your trade is made, or cancel the trade.'
+            )
+
+        if badge[0][0] == 'f':
+            cost = BADGE_DATA[badge_id]['foil_cost']
+        else:
+            cost = BADGE_DATA[badge_id]['standard_cost']
+
+        await self.update_fragments(
+            message.author.id,
+            badge_id,
+            fragments=cost['fragments'] + (cost['fragments'] * int(badge_level)),
+            foil_fragments=cost['foil_fragments'] + (cost['foil_fragments'] * int(badge_level))
+        )
+
+        await self.remove_badge_from_inventory(
+            message.author.id, f'{badge_id}.{"standard" if badge[0][0] == "s" else "foil"}'
+        )
+
+        await self.mbot.send_message(message.channel, '**Badge has been dismantled!**')
+
     @command(regex='^badges display$', name='badges display')
     async def badges_display(self, message):
         header = '**Your Badges**\nEnter an option number from the menu to display a badge or move pages.'
@@ -363,11 +413,7 @@ class Badges(BasePlugin):
         moved = False
 
         if display.get(badge):
-            await self.badges_db.update_one(
-                {'user_id': message.author.id},
-                {'$pull': {'display': {'badge_id': badge}}}
-            )
-
+            await self.remove_badge_from_display(message.author.id, badge)
             moved = True
 
         if slot.content in list(display.values()):
