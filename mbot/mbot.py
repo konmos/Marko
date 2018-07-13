@@ -142,7 +142,8 @@ class mBot(discord.Client):
 
         return resp
 
-    async def option_selector(self, message, header, options, cleanup=True, timeout=20, pp=False, np=False):
+    async def option_selector(self, message, header, options, cleanup=True,
+                              footer=None, timeout=20, pp=False, np=False):
         '''
         Utility function to allow selection of options in discord text chat.
         :param header: The message to display at the top.
@@ -169,7 +170,7 @@ class mBot(discord.Client):
         for x, option in option_map:
             string += f'[{x}] {options[option]}\n'
 
-        string += '```'
+        string += f'```\n{footer or ""}'
         choice = await self.wait_for_input(
             message, string, check=lambda msg: msg.content.isdigit(), cleanup=cleanup, timeout=timeout
         )

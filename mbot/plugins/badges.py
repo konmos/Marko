@@ -6,6 +6,8 @@ from datetime import datetime, timezone
 
 import discord
 from PIL import Image
+from bson.objectid import ObjectId
+from bson.errors import InvalidId
 
 from .badge_data import BADGE_DATA, BADGE_MAP
 from ..plugin import BasePlugin
@@ -50,17 +52,21 @@ class Badges(BasePlugin):
             'display': []
         }
 
+    async def _push_fragments(self, user_id, badge_id):
+        await self.badges_db.update_one(
+            {'user_id': user_id, 'fragments.badge_id': {'$ne': badge_id}},
+            {'$push': {'fragments': {'badge_id': badge_id, 'standard': 0, 'foil': 0}}}
+        )
+
     async def update_fragments(self, user_id, badge_id, fragments=0, foil_fragments=0):
+        await self._push_fragments(user_id, badge_id)
         await self.badges_db.update_one(
             {'user_id': user_id, 'fragments': {'$elemMatch': {'badge_id': badge_id}}},
             {'$inc': {'fragments.$.standard': fragments, 'fragments.$.foil': foil_fragments}}
         )
 
     async def drop_rewards(self, user_id, badge_id, seconds_played):
-        await self.badges_db.update_one(
-            {'user_id': user_id, 'fragments.badge_id': {'$ne': badge_id}},
-            {'$push': {'fragments': {'badge_id': badge_id, 'standard': 0, 'foil': 0}}}
-        )
+        await self._push_fragments(user_id, badge_id)
 
         minutes_played = int(seconds_played / 60)
         fragments, foil_fragments = 0, 0
@@ -73,6 +79,21 @@ class Badges(BasePlugin):
                 fragments += 1
 
         await self.update_fragments(user_id, badge_id, fragments, foil_fragments)
+
+    async def check_inventory(self, user_id):
+        doc = await self.badges_db.find_one({'user_id': user_id})
+
+        if not doc:
+            return False
+
+        if doc['inventory']:
+            return True
+
+        for f in doc['fragments']:
+            if f['foil'] or f['standard']:
+                return True
+
+        return False
 
     async def set_trading(self, trade, badge_id, user_id, amount=None, unset=False):
         _type = "foil" if trade[0] == "f" else "standard"
@@ -202,7 +223,7 @@ class Badges(BasePlugin):
             f'**Your total playtime for this session is {int(doc["total_playtime"] / 60)} minute(s).**'
         )
 
-    async def _browse_badges(self, message, header='', craftable_only=False):
+    async def _browse_badges(self, message, header='', craftable_only=False, silent=False):
         badges, page = [], 0
         doc = await self.get_member_info(message.author.id)
         fragments = {x['badge_id']: (x['standard'], x['foil']) for x in doc['fragments']}
@@ -225,10 +246,11 @@ class Badges(BasePlugin):
         badges = sorted(badges, key=lambda t: t[1])
 
         if not badges:
-            await self.mbot.send_message(
-                message.channel,
-                f'**{"You have no resources to craft any badges" if craftable_only else "Something went wrong..."}**'
-            )
+            if not silent:
+                await self.mbot.send_message(
+                    message.channel,
+                    f'**{"You have no resources to craft any badges" if craftable_only else "Something went wrong."}**'
+                )
 
             return
 
@@ -243,9 +265,10 @@ class Badges(BasePlugin):
             )
 
             if not option:
-                await self.mbot.send_message(
-                    message.channel, '**Closing menu.**'
-                )
+                if not silent:
+                    await self.mbot.send_message(
+                        message.channel, '**Closing menu.**'
+                    )
 
                 break
 
@@ -480,7 +503,7 @@ class Badges(BasePlugin):
         buffer = await self.generate_badges_image(display, _message=message)
         await self.mbot.send_file(message.channel, buffer, filename='badges.png')
 
-    async def _browse_inventory(self, message, header='', fragments=True, badges=True, foil=True):
+    async def _browse_inventory(self, message, header='', fragments=True, badges=True, foil=True, silent=False):
         doc = await self.get_member_info(message.author.id)
         inventory, page = [], 0
 
@@ -517,9 +540,10 @@ class Badges(BasePlugin):
                     )
 
         if not inventory:
-            await self.mbot.send_message(
-                message.channel, '**You have nothing in your inventory.**'
-            )
+            if not silent:
+                await self.mbot.send_message(
+                    message.channel, '**You have nothing in your inventory.**'
+                )
 
             return
 
@@ -536,9 +560,10 @@ class Badges(BasePlugin):
             )
 
             if not option:
-                await self.mbot.send_message(
-                    message.channel, '**Closing menu.**'
-                )
+                if not silent:
+                    await self.mbot.send_message(
+                        message.channel, '**Closing menu.**'
+                    )
 
                 break
 
@@ -560,7 +585,7 @@ class Badges(BasePlugin):
 
         return trades
 
-    async def _browse_trades(self, message, header='', user_id=None):
+    async def _browse_trades(self, message, header='', user_id=None, silent=False):
         page = 0
 
         while True:
@@ -568,9 +593,10 @@ class Badges(BasePlugin):
             next_page = await self.fetch_trades(page + 1, user_id=user_id)
 
             if not trades:
-                await self.mbot.send_message(
-                    message.channel, '**I couldn\'t find any trades.**'
-                )
+                if not silent:
+                    await self.mbot.send_message(
+                        message.channel, '**I couldn\'t find any trades.**'
+                    )
 
                 break
 
@@ -589,9 +615,10 @@ class Badges(BasePlugin):
             )
 
             if not option:
-                await self.mbot.send_message(
-                    message.channel, '**Closing menu.**'
-                )
+                if not silent:
+                    await self.mbot.send_message(
+                        message.channel, '**Closing menu.**'
+                    )
 
                 break
 
@@ -722,3 +749,130 @@ class Badges(BasePlugin):
                 '**Trade Description**\n'
                 f'```{trade["description"]}```'
             )
+
+    async def _make_offer(self, message):
+        if not await self.check_inventory(message.author.id):
+            return await self.mbot.send_message(
+                message.channel,
+                '**You have no tradable items in your inventory.**'
+            )
+
+        offer, header = {}, '**Enter the appropriate option number to add an item to your offer;**'
+
+        while True:
+            actions = {'1': 'Add/Update Item'}
+
+            if offer:
+                actions['2'] = 'Remove Item'
+                actions['3'] = '~ Confirm Offer'
+
+            _m = '\n'.join([x[1] for x in sorted(offer.values())])
+
+            action = await self.mbot.option_selector(
+                message,
+                options=actions,
+                header='**Enter the number of the action you want to perform.**',
+                footer=f'\n**Current Offer:**\n```{_m or "empty"}```',
+                timeout=60
+            )
+
+            if not action:
+                return await self.mbot.send_message(
+                    message.channel,
+                    '**Exiting Offer Menu!**'
+                )
+
+            if action == '1':
+                async for item in self._browse_inventory(message, header, silent=True):
+                    break
+                else:
+                    continue
+
+                amount = 1
+
+                _item = item.split(' ')
+                item_type, item_id = _item[0], _item[1]
+
+                if item_type[1] == 'f':
+                    max_amount = int(item.split(' ')[2])
+                    amount = await self.mbot.wait_for_input(
+                        message,
+                        f'**Enter the amount of fragments you want to sell (max {max_amount});**',
+                        check=lambda m: m.content.isdigit() and int(m.content) > 0, timeout=30
+                    )
+
+                    max_amount = int(item.split(' ')[2])
+                    amount = min(int(amount.content) if amount else 1, max_amount)
+
+                human_string = f'{amount}x {BADGE_DATA[item_id]["badge_name"]} {trade_options[item_type]}'
+                if item_type[1] == 'b':
+                    human_string += f' {{#{_item[-1]}}}'
+
+                offer[f'{item_type} {item_id}'] = (amount, human_string)
+
+            elif action == '2':
+                opt = await self.mbot.option_selector(
+                    message, 'Enter the corresponding option number to remove an item.',
+                    {x[0]: x[1][1] for x in offer.items()}
+                )
+
+                if not opt:
+                    continue
+
+                del offer[opt]
+
+            elif action == '3':
+                break
+
+        return [{'item': x[0], 'amount': x[1][0], 'human_string': x[1][1]} for x in offer.items()]
+
+    @command(regex='^trade offer (.*?)$', name='trade offer')
+    async def trade_offer(self, message, trade_id):
+        try:
+            trade = await self.trade_db.find_one({'_id': ObjectId(trade_id)})
+        except InvalidId:
+            return await self.mbot.send_message(
+                message.channel,
+                '*Invalid trade ID...* :cry:'
+            )
+
+        if not trade:
+            return await self.mbot.send_message(
+                message.channel,
+                '*This trade does not exist... Maybe it was deleted...* :thinking:'
+            )
+
+        offer = await self._make_offer(message)
+
+        if not offer:
+            return await self.mbot.send_message(
+                message.channel,
+                '**Invalid offer.**'
+            )
+
+        await self.trade_db.update_one(
+            {'_id': ObjectId(trade_id)},
+            {'$push': {'offers': {'user_id': message.author.id, 'offer': offer}}}
+        )
+
+        for item in offer:
+            await self.set_trading(
+                item['item'].split(' ')[0],
+                item['item'].split(' ')[1],
+                message.author.id,
+                -item['amount']
+            )
+
+        user = await self.mbot.get_user_info(trade['user_id'])
+
+        if user:
+            await self.mbot.send_message(
+                user,
+                f'{message.author.mention} has made an offer to your trade (**{str(trade["_id"])}**);\n\n'
+                f'`{offer}`'
+            )
+
+        await self.mbot.send_message(
+            message.channel,
+            offer
+        )
