@@ -449,12 +449,13 @@ class mBot(discord.Client):
                 else:
                     # No command patterns matched... Reply with a help message if the command exists.
                     c = self.plugin_manager.command_from_string(message.content, False)
-                    if c:
+                    if c and c.info['name'] in commands:
                         await self.send_message(
                             message.channel,
-                            f'*I couldn\'t understand that...\n'
-                            f'If you wanted to run **{c.info["name"]}** something went wrong...* :cry:\n'
-                            f'For help try running `{cfg["prefix"]}help {c.info["name"]}`.'
+                            f'*I couldn\'t understand that... :cry:\n'
+                            f'If you wanted to run **{c.info["name"]}** something went wrong...*\n'
+                            f'The correct usage is `{cfg["prefix"]}{c.info["usage"]}`. '
+                            f'For more help try running `{cfg["prefix"]}help {c.info["name"]}`.'
                         )
 
         plugins = await self.plugin_manager.plugins_for_server(message.server.id)
