@@ -85,26 +85,30 @@ class mBot(discord.Client):
         #   {user_id: [cmd_timestamp, ...], ...}
         self.recent_commands = defaultdict(list)
 
-    async def update_stats(self, kwargs, server_id=None, global_update=True, op='$inc', query=None):
+    async def update_stats(self, kwargs, scopes, op='$inc', query=None):
+        '''
+        Update bot statistics.
+
+        :param scopes: a list of "scopes" for which to update the statistics.
+            Each item can take on a value of any discord.py destination objects (such
+            as `Server`, `Channel`, etc.) or the string "global" to indicate a global stat.
+            If a destination object has no `id` attribute the error will be ignored silently.
+        '''
         if op not in ('$inc', '$set'):
             op = '$inc'
 
         if query is None:
             query = {}
 
-        if global_update:
-            await self.mongo.stats.update_one(
-                {'scope': 'global', **query},
-                {op: kwargs},
-                upsert=True
-            )
-
-        if server_id:
-            await self.mongo.stats.update_one(
-                {'scope': server_id, **query},
-                {op: kwargs},
-                upsert=True
-            )
+        for scope in scopes:
+            try:
+                await self.mongo.stats.update_one(
+                    {'scope': scope, **query},
+                    {op: kwargs},
+                    upsert=True
+                )
+            except AttributeError:
+                pass
 
     async def wait_for_input(self, message, text, timeout=20, check=None, cleanup=True):
         '''
@@ -215,7 +219,7 @@ class mBot(discord.Client):
     async def send_file(self, destination, fp, *, filename=None, content=None, tts=False, force=False):
         '''Sends a message to the destination given with the file given.'''
 
-        await self.update_stats({'files_sent': 1})
+        await self.update_stats({'files_sent': 1}, scopes=['global'])
 
         if not force:
             # Check if we are in an ignored channel.
@@ -259,7 +263,7 @@ class mBot(discord.Client):
         '''Sends a message to the destination given with the content given.'''
 
         # Update global statistics
-        await self.update_stats({'messages_sent': 1})
+        await self.update_stats({'messages_sent': 1}, scopes=['global'])
 
         # The force argument should generally not be used. Ignored channels must be respected.
         # This argument is currently only used when an admin is managing ignored channels
@@ -352,7 +356,7 @@ class mBot(discord.Client):
         await self._update_bot_guilds(self.servers)
 
         # Update global statistics
-        await self.update_stats({'num_guilds': len(self.servers)}, op='$set')
+        await self.update_stats({'num_guilds': len(self.servers)}, scopes=['global'], op='$set')
 
         for plugin in self.plugin_manager.plugins:
             self.loop.create_task(plugin.on_ready())
@@ -391,7 +395,7 @@ class mBot(discord.Client):
         '''Called when a message is created and sent to a server.'''
         log.debug(f'{sys._getframe().f_code.co_name} event triggered')
 
-        await self.update_stats({'messages_received': 1}, server_id=message.server.id)
+        await self.update_stats({'messages_received': 1}, scopes=['global', message.server])
 
         if message.channel.is_private:
             return
@@ -591,7 +595,7 @@ class mBot(discord.Client):
 
         await self._create_config(server.id)
         await self._update_bot_guilds(guilds=[server])
-        await self.update_stats({'num_guilds': 1})
+        await self.update_stats({'num_guilds': 1}, scopes=['global'])
 
         plugins = await self.plugin_manager.plugins_for_server(server.id)
 
@@ -603,7 +607,7 @@ class mBot(discord.Client):
         log.debug(f'{sys._getframe().f_code.co_name} event triggered')
 
         await self._delete_bot_guild(server.id)
-        await self.update_stats({'num_guilds': -1})
+        await self.update_stats({'num_guilds': -1}, scopes=['global'])
 
         plugins = await self.plugin_manager.plugins_for_server(server.id)
 

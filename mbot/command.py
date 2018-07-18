@@ -70,7 +70,7 @@ def command(*, regex='', usage='', description='', name='', call_on_message=Fals
             else:
                 history = dict([(cmd['name'], cmd['timestamp']) for cmd in doc['commands']])
 
-            await self.mbot.update_stats({'commands_received': 1}, server_id=message.server.id)
+            await self.mbot.update_stats({'commands_received': 1}, scopes=['global', message.server])
 
             # Check cooldown
             if cooldown and not self.mbot.perms_check(message.author, su=True):  # SU can bypass cooldown.
@@ -106,7 +106,7 @@ def command(*, regex='', usage='', description='', name='', call_on_message=Fals
 
                 await self.mbot.update_stats(
                     {'commands_executed.$.n': 1},
-                    server_id=message.server.id,
+                    scopes=['global', message.server],
                     query={'commands_executed': {'$elemMatch': {'command': wrapper.info['name']}}}
                 )
 
