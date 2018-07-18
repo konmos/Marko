@@ -251,3 +251,14 @@ class Core(BasePlugin):
                 )
 
         return await self.mbot.send_message(message.channel, 'An unknown error occurred.')
+
+    @command(regex='^leave(?: (.*?))?$', su=True)
+    async def leave(self, message, server_id=None):
+        try:
+            await self.mbot.leave_server(
+                self.mbot.get_server(server_id) if server_id else message.server
+            )
+        except AttributeError:
+            await self.mbot.send_message(
+                message.channel, '*The specified server does not exist!*'
+            )
