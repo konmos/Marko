@@ -85,6 +85,10 @@ class mBot(discord.Client):
         #   {user_id: [cmd_timestamp, ...], ...}
         self.recent_commands = defaultdict(list)
 
+        # Set of all message ID's which are to be ignored when the `on_message` event is triggered.
+        # This is used to skip the `on_message` event for user input in menu-based interactions.
+        self.ignored_messages = set()
+
     async def update_stats(self, kwargs, scopes, op='$inc', query=None):
         '''
         Update bot statistics.
@@ -123,6 +127,8 @@ class mBot(discord.Client):
         m = await self.send_message(message.channel, text)
 
         def check_input(msg):
+            self.ignored_messages.add(msg.id)
+
             if check is not None:
                 return check(msg) or msg.content in ['cancel', 'exit']
 
@@ -132,6 +138,9 @@ class mBot(discord.Client):
             author=message.author, channel=message.channel,
             timeout=timeout, check=check_input
         )
+
+        if resp is not None:
+            self.ignored_messages.add(resp.id)
 
         if cleanup:
             await self.delete_message(m)
@@ -402,6 +411,9 @@ class mBot(discord.Client):
 
         if message.author.bot:
             return
+
+        if message.id in self.ignored_messages:
+            return self.ignored_messages.remove(message.id)
 
         cfg = await self.mongo.config.find_one({'server_id': message.server.id})
 
