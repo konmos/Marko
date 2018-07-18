@@ -2,6 +2,7 @@ import os
 import io
 import time
 import random
+from hashlib import sha256
 from datetime import datetime, timezone
 
 import discord
@@ -58,12 +59,19 @@ class Badges(BasePlugin):
             {'$push': {'fragments': {'badge_id': badge_id, 'standard': 0, 'foil': 0}}}
         )
 
-    async def update_fragments(self, user_id, badge_id, fragments=0, foil_fragments=0):
+    async def update_fragments(self, user_id, badge_id, fragments=0, foil_fragments=0, trading=False):
         await self._push_fragments(user_id, badge_id)
-        await self.badges_db.update_one(
-            {'user_id': user_id, 'fragments': {'$elemMatch': {'badge_id': badge_id}}},
-            {'$inc': {'fragments.$.standard': fragments, 'fragments.$.foil': foil_fragments}}
-        )
+
+        if not trading:
+            await self.badges_db.update_one(
+                {'user_id': user_id, 'fragments': {'$elemMatch': {'badge_id': badge_id}}},
+                {'$inc': {'fragments.$.standard': fragments, 'fragments.$.foil': foil_fragments}}
+            )
+        else:
+            await self.badges_db.update_one(
+                {'user_id': user_id, 'fragments': {'$elemMatch': {'badge_id': badge_id}}},
+                {'$inc': {'fragments.$.trading_standard': fragments, 'fragments.$.trading_foil': foil_fragments}}
+            )
 
     async def drop_rewards(self, user_id, badge_id, seconds_played):
         await self._push_fragments(user_id, badge_id)
@@ -126,6 +134,12 @@ class Badges(BasePlugin):
         await self.badges_db.update_one(
             {'user_id': user_id},
             {'$pull': {'inventory': {'badge_id': badge}}}
+        )
+
+    async def add_badge_to_inventory(self, user_id, badge, level=0):
+        await self.badges_db.update_one(
+            {'user_id': user_id, 'inventory.badge_id': {'$ne': badge}},
+            {'$push': {'inventory': {'badge_id': badge, 'time_added': time.time(), 'level': level}}}
         )
 
     async def get_member_info(self, user_id):
@@ -307,11 +321,7 @@ class Badges(BasePlugin):
 
         # Badge exists and the user has enough fragments to craft it;
         await self.update_fragments(message.author.id, badge_id, -cost['fragments'], -cost['foil_fragments'])
-
-        await self.badges_db.update_one(
-            {'user_id': message.author.id, 'inventory.badge_id': {'$ne': badge_id}},
-            {'$push': {'inventory': {'badge_id': b, 'time_crafted': time.time(), 'level': 0}}}
-        )
+        await self.add_badge_to_inventory(message.author.id, b)
 
         await self.mbot.send_message(
             message.channel,
@@ -673,6 +683,11 @@ class Badges(BasePlugin):
         )
 
         if description is not None:
+            human_string = f'{amount}x {BADGE_DATA[badge_id]["badge_name"]} {trade_options[trade]}'
+
+            if trade[1] == 'b':
+                human_string += f' {{#{t[-1]}}}'
+
             await self.trade_db.insert_one(
                 {
                     'user_id': message.author.id,
@@ -680,6 +695,7 @@ class Badges(BasePlugin):
                     'badge_id': badge_id,
                     'badge_level': int(t[3]) if trade[1] == 'b' else None,
                     'amount': amount,
+                    'human_string': human_string,
                     'description': description.content,
                     'time_submitted': time.time(),
                     'offers': []
@@ -736,7 +752,7 @@ class Badges(BasePlugin):
             await self.mbot.send_message(
                 message.author,
                 f'**Trade *{str(trade["_id"])}***\n'
-                f'Trade submitted by {author.mention if author else "<USER_NOT_FOUND>"} (ID: {trade["user_id"]})'
+                f'Trade submitted by {author.mention if author else "<@user>"} (ID: {trade["user_id"]})'
                 f'\nDate submitted {time_str} {utc_offset}\n\n'
                 '**Trade Information**\n'
                 f'  • Trade Type - `{trade["trade_type"]}` | `{trade_options[trade["trade_type"]]}`\n'
@@ -747,7 +763,9 @@ class Badges(BasePlugin):
                 f'  • Badge Level - `{trade["badge_level"] if trade["badge_level"] is not None else "N/A"}`\n'
                 f'  • Games - `{badge["games"]}`\n\n'
                 '**Trade Description**\n'
-                f'```{trade["description"]}```'
+                f'```{trade["description"]}```\n\n'
+                f'To make an offer to this trade, run the command `trade offer {str(trade["_id"])}`'
+                ' in any server that I\'m in using that server\'s prefix.'
             )
 
     async def _make_offer(self, message):
@@ -791,10 +809,13 @@ class Badges(BasePlugin):
                 amount = 1
 
                 _item = item.split(' ')
-                item_type, item_id = _item[0], _item[1]
+                item_type, item_id, item_level = _item[0], _item[1], None
+
+                if item_type[1] == 'b':
+                    item_level = int(_item[3])
 
                 if item_type[1] == 'f':
-                    max_amount = int(item.split(' ')[2])
+                    max_amount = int(_item[2])
                     amount = await self.mbot.wait_for_input(
                         message,
                         f'**Enter the amount of fragments you want to sell (max {max_amount});**',
@@ -805,10 +826,11 @@ class Badges(BasePlugin):
                     amount = min(int(amount.content) if amount else 1, max_amount)
 
                 human_string = f'{amount}x {BADGE_DATA[item_id]["badge_name"]} {trade_options[item_type]}'
+
                 if item_type[1] == 'b':
                     human_string += f' {{#{_item[-1]}}}'
 
-                offer[f'{item_type} {item_id}'] = (amount, human_string)
+                offer[f'{item_type} {item_id}'] = (amount, human_string, item_level)
 
             elif action == '2':
                 opt = await self.mbot.option_selector(
@@ -824,7 +846,9 @@ class Badges(BasePlugin):
             elif action == '3':
                 break
 
-        return [{'item': x[0], 'amount': x[1][0], 'human_string': x[1][1]} for x in offer.items()]
+        return [
+            {'item': x[0], 'amount': x[1][0], 'human_string': x[1][1], 'badge_level': x[1][2]} for x in offer.items()
+        ]
 
     @command(regex='^trade offer (.*?)$', name='trade offer')
     async def trade_offer(self, message, trade_id):
@@ -850,9 +874,18 @@ class Badges(BasePlugin):
                 '**Invalid offer.**'
             )
 
+        offer_dict = {
+            'offer': offer,
+            'user_id': message.author.id,
+            'timestamp': time.time()
+        }
+
+        offer_id = sha256(str(offer_dict).encode('utf-8')).hexdigest()[:16]
+        offer_dict['offer_id'] = offer_id
+
         await self.trade_db.update_one(
             {'_id': ObjectId(trade_id)},
-            {'$push': {'offers': {'user_id': message.author.id, 'offer': offer}}}
+            {'$push': {'offers': offer_dict}}
         )
 
         for item in offer:
@@ -866,13 +899,123 @@ class Badges(BasePlugin):
         user = await self.mbot.get_user_info(trade['user_id'])
 
         if user:
+            offer_msg = '\n'.join(x['human_string'] for x in offer)
+
             await self.mbot.send_message(
                 user,
                 f'{message.author.mention} has made an offer to your trade (**{str(trade["_id"])}**);\n\n'
-                f'`{offer}`'
+                f'```{offer_msg}```\n\n'
+                f'To accept this offer run the command `trade accept {str(trade["_id"])} {offer_id}` in any server'
+                ' that I\'m in using that server\'s prefix.'
             )
 
         await self.mbot.send_message(
             message.channel,
-            offer
+            '**The specified offer has been made and the trade owner notified!** :ok_hand:'
+        )
+
+    @command(regex='^trade accept (.*?) (.*?)$', name='trade accept')
+    async def trade_accept(self, message, trade_id, offer_id):
+        try:
+            trade = await self.trade_db.find_one({'_id': ObjectId(trade_id), 'user_id': message.author.id})
+        except InvalidId:
+            return await self.mbot.send_message(
+                message.channel,
+                '*Invalid trade ID...* :cry:'
+            )
+
+        if not trade:
+            return await self.mbot.send_message(
+                message.channel,
+                '*This trade does not exist... Maybe it was deleted...* :thinking:'
+            )
+
+        offer = {o['offer_id']: o for o in trade['offers']}.get(offer_id)
+
+        if offer is None:
+            return await self.mbot.send_message(
+                message.channel,
+                '*This offer does not exist!*'
+            )
+
+        for item in offer['offer']:
+            item_type, item_id = item['item'].split(' ')
+
+            if item_type[1] == 'b':
+                await self.add_badge_to_inventory(
+                    message.author.id,
+                    f'{item_id}.{"standard" if item_type[0] == "s" else "foil"}',
+                    item['badge_level']
+                )
+
+                await self.remove_badge_from_inventory(
+                    offer['user_id'], f'{item_id}.{"standard" if item_type[0] == "s" else "foil"}'
+                )
+
+            elif item_type[1] == 'f':
+                await self.update_fragments(
+                    message.author.id, badge_id=item_id,
+                    fragments=item['amount'] if item_type[0] == 's' else 0,
+                    foil_fragments=item['amount'] if item_type[0] == 'f' else 0
+                )
+
+                await self.update_fragments(
+                    offer['user_id'], item_id,
+                    fragments=-item['amount'] if item_type[0] == 's' else 0,
+                    foil_fragments=-item['amount'] if item_type[0] == 'f' else 0,
+                    trading=True
+                )
+
+        t_item_type, t_item_id = trade['trade_type'], trade['badge_id']
+
+        if t_item_type[1] == 'f':
+            await self.update_fragments(
+                message.author.id, badge_id=t_item_id,
+                fragments=-trade['amount'] if t_item_type[0] == 's' else 0,
+                foil_fragments=-trade['amount'] if t_item_type[0] == 'f' else 0,
+                trading=True
+            )
+
+            await self.update_fragments(
+                offer['user_id'], badge_id=t_item_id,
+                fragments=trade['amount'] if t_item_type[0] == 's' else 0,
+                foil_fragments=trade['amount'] if t_item_type[0] == 'f' else 0
+            )
+
+        elif t_item_type[1] == 'b':
+            await self.remove_badge_from_inventory(
+                message.author.id, f'{t_item_id}.{"standard" if t_item_type[0] == "s" else "foil"}'
+            )
+
+            await self.add_badge_to_inventory(
+                offer['user_id'],
+                f'{t_item_id}.{"standard" if t_item_type[0] == "s" else "foil"}',
+                trade['badge_level']
+            )
+
+        offer_msg = '\n'.join(x['human_string'] for x in offer['offer'])
+
+        await self.mbot.send_message(
+            message.channel,
+            '**Trade Complete!** :ok_hand:\n\n'
+            'The following item(s) have been added to your inventory:\n'
+            f'```{offer_msg}```\n\n'
+            'The following item(s) have been removed from your inventory:\n'
+            f'```{trade["human_string"]}```'
+        )
+
+        offer_user = await self.mbot.get_user_info(offer['user_id'])
+
+        if offer_user:
+            await self.mbot.send_message(
+                offer_user,
+                f'Your offer for trade **{str(trade["_id"])}** has been accepted.\n\n'
+                'The following item(s) have been added to your inventory:\n'
+                f'```{trade["human_string"]}```\n\n'
+                'The following item(s) have been removed from your inventory:\n'
+                f'```{offer_msg}```'
+            )
+
+        await self.trade_db.delete_one(
+            {'_id': ObjectId(trade_id)}
         )
