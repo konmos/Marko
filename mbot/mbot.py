@@ -103,7 +103,7 @@ class mBot(discord.Client):
         for scope in scopes:
             try:
                 await self.mongo.stats.update_one(
-                    {'scope': scope, **query},
+                    {'scope': scope if isinstance(scope, str) else scope.id, **query},
                     {op: kwargs},
                     upsert=True
                 )
