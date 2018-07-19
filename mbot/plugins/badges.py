@@ -293,7 +293,7 @@ class Badges(BasePlugin):
             else:
                 yield option
 
-    @command(regex='^badges craft$', name='badges craft', usage='badges craft')
+    @command(regex='^badges craft$', name='badges craft', usage='badges craft', mutex='badges')
     async def badges_craft(self, message):
         header = '**Showing Badges You Can Craft**\nEnter an option number from the menu to craft badges or move pages.'
 
@@ -328,7 +328,7 @@ class Badges(BasePlugin):
             f'**Badge has been crafted!** :ok_hand:'
         )
 
-    @command(regex='^badges upgrade$', name='badges upgrade')
+    @command(regex='^badges upgrade$', name='badges upgrade', mutex='badges')
     async def badges_upgrade(self, message):
         header = '**Which Badge Would You Like To Upgrade?**'
         async for b in self._browse_inventory(message, header=header, fragments=False, foil=False):
@@ -371,7 +371,7 @@ class Badges(BasePlugin):
             f':ok_hand: **Upgraded badge to level *{badges[f"{badge_id}.standard"][0] + 1}*.**'
         )
 
-    @command(regex='^badges dismantle$', name='badges dismantle')
+    @command(regex='^badges dismantle$', name='badges dismantle', mutex='badges')
     async def badges_dismantle(self, message):
         async for b in self._browse_inventory(message, '**Select the badge you want to dismantle**', fragments=False):
             break
@@ -408,7 +408,7 @@ class Badges(BasePlugin):
 
         await self.mbot.send_message(message.channel, '**Badge has been dismantled!**')
 
-    @command(regex='^badges display$', name='badges display')
+    @command(regex='^badges display$', name='badges display', mutex='badges')
     async def badges_display(self, message):
         header = '**Your Badges**\nEnter an option number from the menu to display a badge or move pages.'
 
@@ -639,7 +639,7 @@ class Badges(BasePlugin):
             else:
                 yield trades[int(option)]
 
-    @command(regex='^trade sell$', name='trade sell')
+    @command(regex='^trade sell$', name='trade sell', mutex='badges')
     async def trade_sell(self, message):
         header = '**Your Inventory**\nEnter the option number of the item you want to put up for trade.'
 
@@ -714,7 +714,7 @@ class Badges(BasePlugin):
             '*The item description must be supplied.*'
         )
 
-    @command(regex='^trade cancel$', name='trade cancel')
+    @command(regex='^trade cancel$', name='trade cancel', mutex='badges')
     async def trade_cancel(self, message):
         header = 'Your trades\nEnter an appropriate option number to cancel a trade.'
 
@@ -850,7 +850,7 @@ class Badges(BasePlugin):
             {'item': x[0], 'amount': x[1][0], 'human_string': x[1][1], 'badge_level': x[1][2]} for x in offer.items()
         ]
 
-    @command(regex='^trade offer (.*?)$', name='trade offer')
+    @command(regex='^trade offer (.*?)$', name='trade offer', mutex='badges')
     async def trade_offer(self, message, trade_id):
         try:
             trade = await self.trade_db.find_one({'_id': ObjectId(trade_id)})
@@ -914,7 +914,7 @@ class Badges(BasePlugin):
             '**The specified offer has been made and the trade owner notified!** :ok_hand:'
         )
 
-    @command(regex='^trade accept (.*?) (.*?)$', name='trade accept')
+    @command(regex='^trade accept (.*?) (.*?)$', name='trade accept', mutex='badges')
     async def trade_accept(self, message, trade_id, offer_id):
         try:
             trade = await self.trade_db.find_one({'_id': ObjectId(trade_id), 'user_id': message.author.id})
