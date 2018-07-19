@@ -19,7 +19,7 @@ class ABORT_COMMAND(object):
 
 
 def command(*, regex='', usage='', description='', name='', call_on_message=False,
-            su=False, perms=None, cooldown=None, aliases=None, nsfw=False):
+            su=False, perms=None, cooldown=None, aliases=None, nsfw=False, mutex=None):
     '''
     Utility function to make creating commands easier. Takes care of common tasks such as
     pattern matching, permissions, roles, usages, etc... When a message matches the `regex`,
@@ -140,6 +140,7 @@ def command(*, regex='', usage='', description='', name='', call_on_message=Fals
         wrapper._command = True
         wrapper._func = func
         wrapper._pattern = pattern
+        wrapper._mutex = mutex
 
         wrapper.info = {
             'usage': usage or '',

@@ -84,10 +84,39 @@ class mBot(discord.Client):
         # recent_commands:
         #   {user_id: [cmd_timestamp, ...], ...}
         self.recent_commands = defaultdict(list)
+        self.mutexes = defaultdict(asyncio.Lock)
 
         # Set of all message ID's which are to be ignored when the `on_message` event is triggered.
         # This is used to skip the `on_message` event for user input in menu-based interactions.
         self.ignored_messages = set()
+
+    async def run_command(self, message, command):
+        self.recent_commands[message.author.id].append(time.time())
+
+        if command._mutex is not None:
+            if self.mutexes[command._mutex].locked():
+                await asyncio.sleep(5)
+
+            if not self.mutexes[command._mutex].locked():
+                await self.mutexes[command._mutex].acquire()
+
+                try:
+                    await command(message)
+                finally:
+                    self.mutexes[command._mutex].release()
+            else:
+                m = await self.send_message(
+                    message.channel,
+                    f'{message.author.mention}\n'
+                    f'Could not run command `{command.info["name"]}` due to conflict with an already running command.'
+                    '\nPlease wait until the conflicting command finishes (this is most likely caused be a menu'
+                    ' that you forgot to close).'
+                )
+
+                await asyncio.sleep(8)
+                await self.delete_message(m)
+        else:
+            await command(message)
 
     async def update_stats(self, kwargs, scopes, op='$inc', query=None):
         '''
@@ -459,8 +488,7 @@ class mBot(discord.Client):
 
                 for command in commands.values():
                     if command._pattern.match(message.content):
-                        self.recent_commands[message.author.id].append(time.time())
-                        self.loop.create_task(command(message))
+                        self.loop.create_task(self.run_command(message, command))
                         matched_cmd = command
                         break  # Ignore possible name conflicts... Commands should have unique names!
                 else:
