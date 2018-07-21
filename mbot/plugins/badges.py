@@ -207,7 +207,7 @@ class Badges(BasePlugin):
                     reward
                 ))
 
-    @command(regex='^badges mystats', name='badges mystats')
+    @command(regex='^badges mystats$', name='badges mystats')
     async def badges_stats(self, message):
         doc = await self.get_member_info(message.author.id)
 
