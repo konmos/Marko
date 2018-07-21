@@ -35,10 +35,6 @@ class Badges(BasePlugin):
         self.trade_db = self.mbot.mongo.plugin_data.trades
 
     @staticmethod
-    def badge_for_game(game_name):
-        return BADGE_DATA.get(BADGE_MAP.get(game_name))
-
-    @staticmethod
     def _default_doc(user_id):
         return {
             'user_id': user_id,
