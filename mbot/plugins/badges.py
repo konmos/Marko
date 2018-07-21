@@ -207,30 +207,21 @@ class Badges(BasePlugin):
                     reward
                 ))
 
-    @command(regex='^badges cooldown$', name='badges cooldown')
-    async def badges_cooldown(self, message):
+    @command(regex='^badges mystats', name='badges mystats')
+    async def badges_stats(self, message):
         doc = await self.get_member_info(message.author.id)
 
-        if doc['hit_cap'] == 0:
-            return await self.mbot.send_message(
-                message.channel,
-                '**You have never hit the daily cap! Play some gaems man...** :ok_hand:'
-            )
-
-        hit_cap = human_time(time.time() - doc['hit_cap'])
+        hit_cap = doc['hit_cap']
+        _hit_cap = human_time(time.time() - doc['hit_cap'])
+        playtime = int(doc['total_playtime'] / 60)
+        playtime_remaining= int(max(DAILY_CAP - doc['total_playtime'], 0) / 60)
 
         return await self.mbot.send_message(
             message.channel,
-            f'**The last time you hit the cap was {hit_cap}.**'
-        )
-
-    @command(regex='^badges playtime$', name='badges playtime')
-    async def badges_playtime(self, message):
-        doc = await self.get_member_info(message.author.id)
-
-        await self.mbot.send_message(
-            message.channel,
-            f'**Your total playtime for this session is {int(doc["total_playtime"] / 60)} minute(s).**'
+            f'**Your playtime stats for the latest {int(DAILY_CAP / 3600)}-hour session**\n\n'
+            f'{"You have never hit the daily cap before" if hit_cap == 0 else "You hit the cap " + _hit_cap}.\n'
+            f'The daily playtime cap is {DAILY_CAP} seconds. The playtime cooldown is {PLAYTIME_RESET} seconds.\n'
+            f'You have {playtime} minute(s) of playtime in this session and {playtime_remaining} minute(s) remaining.'
         )
 
     async def _browse_badges(self, message, header='', craftable_only=False, silent=False):
