@@ -738,7 +738,7 @@ class Badges(BasePlugin):
         header = '**Enter an option number from the menu.**\n' \
                  'The trade information will be sent in a PM to you\n' \
 
-        async for trade in self._browse_trades(message, header):
+        async for trade in self._browse_trades(message, header, user_id={'$ne': message.author.id}):
             try:
                 author = await self.mbot.get_user_info(trade['user_id'])
             except (discord.NotFound, discord.HTTPException):
