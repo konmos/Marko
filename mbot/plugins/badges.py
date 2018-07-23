@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 import discord
 from PIL import Image
 from bson.objectid import ObjectId
-from bson.errors import InvalidId
+from bson.errors import InvalidId, InvalidDocument
 
 from .badge_data import BADGE_DATA, BADGE_MAP
 from ..plugin import BasePlugin
@@ -84,14 +84,19 @@ class Badges(BasePlugin):
 
         await self.update_fragments(user_id, badge_id, fragments, foil_fragments)
 
-    async def check_inventory(self, user_id):
+    async def check_inventory(self, user_id, trading_badges=True):
         doc = await self.badges_db.find_one({'user_id': user_id})
 
         if not doc:
             return False
 
         if doc['inventory']:
-            return True
+            if trading_badges:
+                return True
+            else:
+                for b in doc['inventory']:
+                    if not b.get('trading', False):
+                        return True
 
         for f in doc['fragments']:
             if f['foil'] or f['standard']:
@@ -104,13 +109,13 @@ class Badges(BasePlugin):
 
         if trade[1] == 'f':
             if trade[0] == 'f':
-                await self.update_fragments(user_id, badge_id, foil_fragments=amount)
+                await self.update_fragments(user_id, badge_id, foil_fragments=amount if unset else -amount)
             else:
-                await self.update_fragments(user_id, badge_id, fragments=amount)
+                await self.update_fragments(user_id, badge_id, fragments=amount if unset else -amount)
 
             await self.badges_db.update_one(
                 {'user_id': user_id, 'fragments': {'$elemMatch': {'badge_id': badge_id}}},
-                {'$set' if not unset else '$unset': {f'fragments.$.trading_{_type}': abs(amount)}}
+                {'$inc': {f'fragments.$.trading_{_type}': -amount if unset else amount}}
             )
         elif trade[1] == 'b':
             _id = f'{badge_id}.{_type}'
@@ -500,7 +505,8 @@ class Badges(BasePlugin):
         buffer = await self.generate_badges_image(display, _message=message)
         await self.mbot.send_file(message.channel, buffer, filename='badges.png')
 
-    async def _browse_inventory(self, message, header='', fragments=True, badges=True, foil=True, silent=False):
+    async def _browse_inventory(self, message, header='', fragments=True, badges=True, foil=True, silent=False,
+                                trading_badges=True):
         doc = await self.get_member_info(message.author.id)
         inventory, page = [], 0
 
@@ -509,6 +515,9 @@ class Badges(BasePlugin):
                 badge_id, badge_type = badge['badge_id'].split('.')
 
                 if not foil and badge_type == 'foil':
+                    continue
+
+                if not trading_badges and badge.get('trading', False):
                     continue
 
                 badge_data = BADGE_DATA[badge_id]
@@ -638,15 +647,16 @@ class Badges(BasePlugin):
         t = t.split(' ')
         trade, badge_id, max_amount, amount = t[0], t[1], int(t[2]), 1
 
-        _ = await self.trade_db.find_one(
-            {'user_id': message.author.id, 'trade_type': trade, 'badge_id': badge_id}
-        )
-
-        if _:
-            return await self.mbot.send_message(
-                message.channel,
-                f'*You have already put this item up for trade (trade ID **{str(_["_id"])}**)*'
+        if trade[1] == 'b':
+            _ = await self.trade_db.find_one(
+                {'user_id': message.author.id, 'trade_type': trade, 'badge_id': badge_id}
             )
+
+            if _:
+                return await self.mbot.send_message(
+                    message.channel,
+                    f'*You have already put this item up for trade (trade ID **{str(_["_id"])}**)*'
+                )
 
         if trade[1] == 'f':
             amount = await self.mbot.wait_for_input(
@@ -689,7 +699,7 @@ class Badges(BasePlugin):
                 }
             )
 
-            await self.set_trading(trade, badge_id, message.author.id, -amount)
+            await self.set_trading(trade, badge_id, message.author.id, amount)
 
             return await self.mbot.send_message(
                 message.channel,
@@ -756,7 +766,7 @@ class Badges(BasePlugin):
             )
 
     async def _make_offer(self, message):
-        if not await self.check_inventory(message.author.id):
+        if not await self.check_inventory(message.author.id, trading_badges=False):
             return await self.mbot.send_message(
                 message.channel,
                 '**You have no tradable items in your inventory.**'
@@ -788,7 +798,7 @@ class Badges(BasePlugin):
                 )
 
             if action == '1':
-                async for item in self._browse_inventory(message, header, silent=True):
+                async for item in self._browse_inventory(message, header, silent=True, trading_badges=False):
                     break
                 else:
                     continue
@@ -870,17 +880,20 @@ class Badges(BasePlugin):
         offer_id = sha256(str(offer_dict).encode('utf-8')).hexdigest()[:16]
         offer_dict['offer_id'] = offer_id
 
-        await self.trade_db.update_one(
-            {'_id': ObjectId(trade_id)},
-            {'$push': {'offers': offer_dict}}
-        )
+        try:
+            await self.trade_db.update_one(
+                {'_id': ObjectId(trade_id)},
+                {'$push': {'offers': offer_dict}}
+            )
+        except InvalidDocument:
+            return
 
         for item in offer:
             await self.set_trading(
                 item['item'].split(' ')[0],
                 item['item'].split(' ')[1],
                 message.author.id,
-                -item['amount']
+                item['amount']
             )
 
         user = await self.mbot.get_user_info(trade['user_id'])
