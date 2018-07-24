@@ -8,7 +8,7 @@ class Moderator(BasePlugin):
     def __init__(self, mbot):
         super().__init__(mbot)
 
-        self.blacklist_db = self.mbot.mongo.plugin_data.blacklist
+        self.db = self.mbot.mongo.plugin_data.moderator
 
     async def _purge(self, message, limit=100, check=None):
         if limit is not None:
@@ -25,10 +25,10 @@ class Moderator(BasePlugin):
         )
 
     async def _create_blacklist(self, server_id, strings=None):
-        doc = await self.blacklist_db.find_one({'server_id': server_id})
+        doc = await self.db.find_one({'server_id': server_id})
 
         if not doc:
-            ret = await self.blacklist_db.insert_one(
+            ret = await self.db.insert_one(
                 {
                     'server_id': server_id,
                     'blacklist': strings or []
@@ -38,7 +38,7 @@ class Moderator(BasePlugin):
             return ret
 
     async def get_blacklist(self, server_id):
-        doc = await self.blacklist_db.find_one({'server_id': server_id})
+        doc = await self.db.find_one({'server_id': server_id})
 
         if doc:
             return doc['blacklist']
@@ -46,40 +46,42 @@ class Moderator(BasePlugin):
             return []
 
     async def add_to_blacklist(self, server_id, string):
-        doc = await self.blacklist_db.find_one({'server_id': server_id})
+        doc = await self.db.find_one({'server_id': server_id})
 
         if not doc:
             ret = await self._create_blacklist(server_id, [string])
             return bool(ret)
         else:
             if string not in doc['blacklist']:
-                ret = await self.blacklist_db.update_one(
+                ret = await self.db.update_one(
                     {'server_id': server_id},
                     {'$push': {'blacklist': string}}
                 )
 
-                return bool(ret)
+                return ret.modified_count == 1
 
     async def remove_from_blacklist(self, server_id, string):
-        doc = await self.blacklist_db.find_one({'server_id': server_id})
+        doc = await self.db.find_one({'server_id': server_id})
 
         if not doc:
             ret = await self._create_blacklist(server_id, [string])
+            return bool(ret)
         else:
-            ret = await self.blacklist_db.update_one(
+            ret = await self.db.update_one(
                 {'server_id': server_id},
                 {'$pull': {'blacklist': string}}
             )
 
-        return bool(ret)
+            return ret.modified_count == 1
 
     async def on_message(self, message):
         blist = await self.get_blacklist(message.server.id)
 
         if blist and any([s and s in message.content for s in blist]):
             await self.mbot.send_message(
-                message.channel,
-                f'{message.author.mention} :scream: **You cannot say that!**'
+                message.author,
+                f'Your message *(snippet: `{message.content[:300]}`)* was filtered by the blacklist in '
+                f'the server `{message.server.name}`! :angry:'
             )
 
             try:
@@ -87,7 +89,7 @@ class Moderator(BasePlugin):
             except Forbidden:
                 pass
 
-    @command(regex='^blacklist (.*?)$', usage='blacklist <string2;string1...>',
+    @command(regex='^blacklist (.*?)$', usage='blacklist <string>',
              description='blacklist string(s) or url(s)', perms=8)
     async def blacklist(self, message, string):
         ret = await self.add_to_blacklist(message.server.id, string)
@@ -103,7 +105,7 @@ class Moderator(BasePlugin):
                 f':cry: **Could not blacklist `{string}`!**'
             )
 
-    @command(regex='^whitelist (.*?)$', usage='whitelist <string2;string1...>',
+    @command(regex='^whitelist (.*?)$', usage='whitelist <string>',
              description='whitelist string(s) or url(s)', perms=8)
     async def whitelist(self, message, string):
         ret = await self.remove_from_blacklist(message.server.id, string)
