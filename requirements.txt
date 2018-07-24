@@ -10,3 +10,6 @@ praw
 zerorpc
 motor
 python-dateutil
+
+# Wand also requires ImageMagick binaries
+Wand
