@@ -236,12 +236,13 @@ class PluginManager(object):
         '''
         A string matches a command if it is exactly equal to the command
         in both content and length, or if it is equal in content up to `string[:len(cmd)]`
-        and `string[:len(cmd)+1]` is equal to a whitespace character.
+        and `string[len(cmd)]` is equal to a whitespace character.
         '''
         if string.startswith(cmd):
             if len(string) == len(cmd):
                 return True
-            elif string[:len(cmd)+1] in whitespace:
+
+            elif string[len(cmd)] in whitespace:
                 return True
 
         return False
