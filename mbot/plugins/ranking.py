@@ -257,7 +257,7 @@ class Ranking(BasePlugin):
         try:
             with aiohttp.ClientSession() as client:
                 async with client.head(url) as r:
-                    size = r.headers.get('Content-Length', 0)
+                    size = int(r.headers.get('Content-Length', 0))
                     mimetype = r.headers.get('Content-Type')
 
             if not mimetype:
@@ -267,11 +267,17 @@ class Ranking(BasePlugin):
                 # We'll set a 2MB limit and the file must be an image.
                 # This should do for now, but we'll probably need to make this more strict
                 # in the future.
-                return
+                return await self.mbot.send_message(
+                    message.channel,
+                    '**This file is either not an image or is too large!**'
+                )
         except:
-            pass
+            return await self.mbot.send_message(
+                message.channel, '*Something went wrong...*'
+            )
 
         await self.update_background(message.author.id, url)
+        await self.mbot.send_message(message.channel, '**Background Updated!**')
 
     @command(description='view the top 10 ranked players in the server', usage='top',
              cooldown=5, call_on_message=True)
