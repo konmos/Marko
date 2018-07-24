@@ -90,6 +90,23 @@ class mBot(discord.Client):
         # This is used to skip the `on_message` event for user input in menu-based interactions.
         self.ignored_messages = set()
 
+    async def is_user_blacklisted(self, user_id, server_id=None):
+        if self.perms_check(discord.User(id=user_id), su=True):
+            return False, False
+
+        global_blacklist, local_blacklist = False, False
+
+        if await self.mongo.bot_data.global_blacklist.find_one({'user_id': user_id}):
+            global_blacklist = True
+
+        if server_id is not None:
+            moderator = self.plugin_manager.get_plugin('Moderator')
+
+            if await moderator.is_user_blacklisted(user_id, server_id):
+                local_blacklist = True
+
+        return global_blacklist, local_blacklist
+
     async def run_command(self, message, command):
         self.recent_commands[message.author.id].append(time.time())
 
@@ -443,6 +460,9 @@ class mBot(discord.Client):
 
         if message.id in self.ignored_messages:
             return self.ignored_messages.remove(message.id)
+
+        if any(await self.is_user_blacklisted(message.author.id, message.server.id)):
+            return
 
         cfg = await self.mongo.config.find_one({'server_id': message.server.id})
 

@@ -1,4 +1,6 @@
-from discord import Forbidden
+import time
+
+from discord import Forbidden, NotFound, HTTPException
 
 from ..plugin import BasePlugin
 from ..command import command
@@ -46,6 +48,47 @@ class Moderator(BasePlugin):
         else:
             return []
 
+    async def is_user_blacklisted(self, user_id, server_id):
+        q = await self.db.find_one(
+            {'server_id': server_id, 'users_blacklist': {'$elemMatch': {'user_id': user_id}}}
+        )
+
+        if q is not None:
+            return True
+
+        return False
+
+    async def blacklist_user(self, server_id, user_id, reason):
+        doc = await self.db.find_one({'server_id': server_id})
+
+        if not doc:
+            ret = await self._create_blacklist(
+                server_id, users=[{'user_id': user_id, 'reason': reason, 'timestamp': time.time()}]
+            )
+
+            return bool(ret)
+        else:
+            ret = await self.db.update_one(
+                {'server_id': server_id, 'users_blacklist': {'$ne': {'user_id': user_id}}},
+                {'$push': {'users_blacklist': {'user_id': user_id, 'reason': reason, 'timestamp': time.time()}}}
+            )
+
+            return ret.modified_count == 1
+
+    async def whitelist_user(self, server_id, user_id):
+        doc = await self.db.find_one({'server_id': server_id})
+
+        if not doc:
+            await self._create_blacklist(server_id)
+            return False
+        else:
+            ret = await self.db.update_one(
+                {'server_id': server_id},
+                {'$pull': {'users_blacklist': {'user_id': user_id}}}
+            )
+
+            return ret.modified_count == 1
+
     async def blacklist_string(self, server_id, string):
         doc = await self.db.find_one({'server_id': server_id})
 
@@ -65,8 +108,8 @@ class Moderator(BasePlugin):
         doc = await self.db.find_one({'server_id': server_id})
 
         if not doc:
-            ret = await self._create_blacklist(server_id, strings=[string])
-            return bool(ret)
+            await self._create_blacklist(server_id)
+            return False
         else:
             ret = await self.db.update_one(
                 {'server_id': server_id},
@@ -120,6 +163,62 @@ class Moderator(BasePlugin):
             await self.mbot.send_message(
                 message.channel,
                 f':cry: **Could not whitelist `{string}`!**'
+            )
+
+    @command(regex='^blacklist user (\d+) (.*?)$', usage='blacklist user <user_id> <reason>',
+             description='blacklist a user by their ID', perms=8, name='blacklist user')
+    async def blacklist_user_cmd(self, message, user_id, reason):
+        try:
+            user = await self.mbot.get_user_info(user_id)
+        except (NotFound, HTTPException):
+            return await self.mbot.send_message(
+                message.channel,
+                '**This user does not exist!**'
+            )
+
+        ret = await self.blacklist_user(message.server.id, user_id, reason)
+
+        if ret:
+            await self.mbot.send_message(
+                message.channel,
+                f':ok_hand: **Successfully blacklisted the user `{user_id}`!**'
+            )
+
+            await self.mbot.send_message(
+                user,
+                f'You have been blacklisted in the server `{message.server.name}`.\n'
+                f'The reason for this was `{reason}`.'
+            )
+        else:
+            await self.mbot.send_message(
+                message.channel,
+                f':cry: **Could not blacklist the user `{user_id}`!**'
+            )
+
+    @command(regex='^whitelist user (.*?)$', usage='whitelist user <user_id>',
+             description='whitelist a user', perms=8, name='whitelist user')
+    async def whitelist_user_cmd(self, message, user_id):
+        ret = await self.whitelist_user(message.server.id, user_id)
+
+        if ret:
+            await self.mbot.send_message(
+                message.channel,
+                f':ok_hand: **Successfully whitelisted the user `{user_id}`!**'
+            )
+
+            try:
+                user = await self.mbot.get_user_info(user_id)
+
+                await self.mbot.send_message(
+                    user,
+                    f'You have been removed from the blacklist in the server `{message.server.name}`.'
+                )
+            except (NotFound, HTTPException):
+                return
+        else:
+            await self.mbot.send_message(
+                message.channel,
+                f':cry: **Could not whitelist the user `{user_id}`!**'
             )
 
     @command(regex='^purge(?: (\d*?))?$', description='purge the channel', usage='purge [limit]',

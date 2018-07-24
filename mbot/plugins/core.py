@@ -1,3 +1,5 @@
+import time
+
 from textwrap import dedent
 from datetime import datetime
 
@@ -262,3 +264,40 @@ class Core(BasePlugin):
             await self.mbot.send_message(
                 message.channel, '*The specified server does not exist!*'
             )
+
+    @command(regex='^global-blacklist (add|remove) (\d+)(?: (.*?))?$', name='global-blacklist', su=True)
+    async def global_blacklist(self, message, op, user_id, reason=None):
+        if op == 'add':
+            ret = await self.mbot.mongo.bot_data.global_blacklist.update_one(
+                {'user_id': user_id},
+                {'$setOnInsert': {'timestamp': time.time()}, '$set': {'reason': reason}},
+                upsert=True
+            )
+
+            if ret.upserted_id is not None:
+                try:
+                    user = await self.mbot.get_user_info(user_id)
+
+                    await self.mbot.send_message(
+                        user,
+                        f'You have been added to my global blacklist by an admin.\n'
+                    )
+                except (discord.NotFound, discord.HTTPException):
+                    return
+        else:
+            ret = await self.mbot.mongo.bot_data.global_blacklist.delete_one(
+                {'user_id': user_id}
+            )
+
+            if ret.deleted_count == 1:
+                try:
+                    user = await self.mbot.get_user_info(user_id)
+
+                    await self.mbot.send_message(
+                        user,
+                        f'You have been removed from my global blacklist.'
+                    )
+                except (discord.NotFound, discord.HTTPException):
+                    return
+
+        await self.mbot.send_message(message.channel, 'Done.')
