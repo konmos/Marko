@@ -24,58 +24,59 @@ class Moderator(BasePlugin):
             message.channel, f'**{message.author.mention} Deleted {len(deleted)} message(s).**'
         )
 
-    async def _create_blacklist(self, server_id, strings=None):
+    async def _create_blacklist(self, server_id, strings=None, users=None):
         doc = await self.db.find_one({'server_id': server_id})
 
         if not doc:
             ret = await self.db.insert_one(
                 {
                     'server_id': server_id,
-                    'blacklist': strings or []
+                    'strings_blacklist': strings or [],
+                    'users_blacklist': users or []
                 }
             )
 
             return ret
 
-    async def get_blacklist(self, server_id):
+    async def get_strings_blacklist(self, server_id):
         doc = await self.db.find_one({'server_id': server_id})
 
         if doc:
-            return doc['blacklist']
+            return doc['strings_blacklist']
         else:
             return []
 
-    async def add_to_blacklist(self, server_id, string):
+    async def blacklist_string(self, server_id, string):
         doc = await self.db.find_one({'server_id': server_id})
 
         if not doc:
-            ret = await self._create_blacklist(server_id, [string])
+            ret = await self._create_blacklist(server_id, strings=[string])
             return bool(ret)
         else:
-            if string not in doc['blacklist']:
+            if string not in doc['strings_blacklist']:
                 ret = await self.db.update_one(
                     {'server_id': server_id},
-                    {'$push': {'blacklist': string}}
+                    {'$push': {'strings_blacklist': string}}
                 )
 
                 return ret.modified_count == 1
 
-    async def remove_from_blacklist(self, server_id, string):
+    async def whitelist_string(self, server_id, string):
         doc = await self.db.find_one({'server_id': server_id})
 
         if not doc:
-            ret = await self._create_blacklist(server_id, [string])
+            ret = await self._create_blacklist(server_id, strings=[string])
             return bool(ret)
         else:
             ret = await self.db.update_one(
                 {'server_id': server_id},
-                {'$pull': {'blacklist': string}}
+                {'$pull': {'strings_blacklist': string}}
             )
 
             return ret.modified_count == 1
 
     async def on_message(self, message):
-        blist = await self.get_blacklist(message.server.id)
+        blist = await self.get_strings_blacklist(message.server.id)
 
         if blist and any([s and s in message.content for s in blist]):
             await self.mbot.send_message(
@@ -89,10 +90,10 @@ class Moderator(BasePlugin):
             except Forbidden:
                 pass
 
-    @command(regex='^blacklist (.*?)$', usage='blacklist <string>',
-             description='blacklist string(s) or url(s)', perms=8)
-    async def blacklist(self, message, string):
-        ret = await self.add_to_blacklist(message.server.id, string)
+    @command(regex='^blacklist string (.*?)$', usage='blacklist string <string>',
+             description='blacklist string(s) or url(s)', perms=8, name='blacklist string')
+    async def blacklist_string_cmd(self, message, string):
+        ret = await self.blacklist_string(message.server.id, string)
 
         if ret:
             await self.mbot.send_message(
@@ -105,10 +106,10 @@ class Moderator(BasePlugin):
                 f':cry: **Could not blacklist `{string}`!**'
             )
 
-    @command(regex='^whitelist (.*?)$', usage='whitelist <string>',
-             description='whitelist string(s) or url(s)', perms=8)
-    async def whitelist(self, message, string):
-        ret = await self.remove_from_blacklist(message.server.id, string)
+    @command(regex='^whitelist string (.*?)$', usage='whitelist string <string>',
+             description='whitelist string(s) or url(s)', perms=8, name='whitelist string')
+    async def whitelist_string_cmd(self, message, string):
+        ret = await self.whitelist_string(message.server.id, string)
 
         if ret:
             await self.mbot.send_message(
