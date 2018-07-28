@@ -115,7 +115,11 @@ def command(*, regex='', usage='', description='', name='', call_on_message=Fals
                     f'forbidden to run command {wrapper.info["name"]} in server {message.server.id} {match.groups()}'
                 )
 
-                msg = await self.mbot.send_message(message.channel, '*I cannot do that...* :cry:')
+                msg = await self.mbot.send_message(
+                    message.channel,
+                    '*I do not have the required permissions to do that....* :cry:'
+                )
+
                 await asyncio.sleep(5)
                 await self.mbot.delete_message(msg)
             except Exception:
