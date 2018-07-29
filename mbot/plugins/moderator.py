@@ -226,8 +226,8 @@ class Moderator(BasePlugin):
     async def purge(self, message, limit=100):
         await self._purge(message, limit)
 
-    @command(regex='^purge users .*?(?: (\d*?))?$', description='purge messages created by certain users',
-             usage='purge users <user mentions...> [limit]', perms=8192, cooldown=5, name='purge users')
+    @command(regex='^purge users .+?(?: (\d*?))?$', description='purge messages created by certain users',
+             usage='purge users <@user>... [limit]', perms=8192, cooldown=5, name='purge users')
     async def purge_users(self, message, limit=100):
         await self._purge(message, limit, check=lambda msg: msg.author in message.mentions)
 
@@ -270,3 +270,43 @@ class Moderator(BasePlugin):
              usage='purge mentions [limit]', perms=8192, cooldown=5, name='purge mentions')
     async def purge_mentions(self, message, limit=None):
         await self._purge(message, limit, check=lambda m: m.mentions)
+
+    @command(regex='^kick.+$', perms=2, description='kick users by mention', usage='kick <@user>...')
+    async def kick(self, message):
+        count = 0
+
+        for member in message.mentions:
+            await self.mbot.kick(member)
+            count += 1
+
+        await self.mbot.send_message(
+            message.channel,
+            f'**Kicked {count} member(s).**'
+        )
+
+    @command(regex='^ban.+$', perms=4)
+    async def ban(self, message):
+        count = 0
+
+        for member in message.mentions:
+            await self.mbot.ban(member, 7)
+            count += 1
+
+        await self.mbot.send_message(
+            message.channel,
+            f'**Banned {count} member(s).**'
+        )
+
+    @command(regex='^softban.+$', perms=4)
+    async def softban(self, message):
+        count = 0
+
+        for member in message.mentions:
+            await self.mbot.ban(member, 7)
+            await self.mbot.unban(member.server, member)
+            count += 1
+
+        await self.mbot.send_message(
+            message.channel,
+            f'**Soft-banned {count} member(s).**'
+        )
