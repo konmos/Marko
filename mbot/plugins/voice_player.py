@@ -280,6 +280,20 @@ class Music(BasePlugin):
         await self.set_playing(message.server.id, f'{message.author.name}#{message.author.discriminator}', info)
         return info
 
+    @command()
+    async def nowplaying(self, message):
+        playlist = await self.get_playlist(message.server.id)
+
+        if playlist['now_playing'] is None:
+            await self.mbot.send_message(message.channel, '**There is nothing playing atm.**')
+        else:
+            await self.mbot.send_message(
+                message.channel,
+                ':notes: | Now Playing '
+                f'**{playlist["now_playing"]["title"]}**\n(<{playlist["now_playing"]["url"]}>) '
+                f'[*added by {playlist["now_playing"]["user"]}*]'
+            )
+
     @command(regex='^join(?: (.*?))?$', description='join a voice channel', usage='join [channel]')
     async def join(self, message, channel_name=None):
         if not await self.check_empty_channel(message):
