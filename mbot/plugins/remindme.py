@@ -1,5 +1,7 @@
 import time
 import asyncio
+from datetime import datetime, timezone
+
 import discord
 from bson.objectid import ObjectId
 
@@ -44,3 +46,29 @@ class Reminders(BasePlugin):
         })
 
         await self.mbot.send_message(message.channel, f':date: | Reminder set for {message.author.mention}')
+
+    @command()
+    async def myreminders(self, message):
+        reminders = []
+
+        async for r in self.reminder_db.find({'user_id': message.author.id}).sort('expires', 1).limit(8):
+            time_str = datetime.fromtimestamp(r['expires']).strftime('%Y-%m-%d %H:%M:%S')
+            # noinspection PyArgumentList
+            utc_offset = datetime.now(timezone.utc).astimezone().strftime('%z')
+
+            reminders.append((r['message'], f'{time_str} {utc_offset}'))
+
+        if not reminders:
+            return await self.mbot.send_message(
+                message.channel,
+                '**You have not set any reminders!**'
+            )
+
+        m = ''
+        for reminder in reminders:
+            m += f'{reminder[1]}\n\t> {reminder[0]}\n\n'
+
+        return await self.mbot.send_message(
+            message.channel,
+            f'**Your most recent reminders:**\n\n```{m}```'
+        )
