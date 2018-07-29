@@ -1,4 +1,5 @@
 import io
+import random
 import mimetypes
 
 import aiohttp
@@ -67,3 +68,62 @@ class Fun(BasePlugin):
 
         im = await self._magik(image_buffer)
         await self.mbot.send_file(message.channel, im, filename='magik.jpg')
+
+    @command(regex='^dice(?: (\d{0,2})d(\d{1,2}))?$')
+    async def dice(self, message, no_dice=None, no_faces=None):
+        a, x = int(no_dice or 1), int(no_faces or 6)
+        result = sum([random.randint(1, x) for _ in range(a)])
+
+        await self.mbot.send_message(
+            message.channel,
+            f'The result of your **{a}d{x}** is **{result}**.'
+        )
+
+    @command(regex='^choose (.*?)$')
+    async def choose(self, message, inputs):
+        choices = [x.strip() for x in inputs.split(';') if x.strip()]
+
+        if not choices or len(choices) == 1:
+            return await self.mbot.send_message(
+                message.channel,
+                '**Please give me at least two choices...**'
+            )
+
+        await self.mbot.send_message(
+            message.channel,
+            f'**I choose `{random.choice(choices)}`!**'
+        )
+
+    @command()
+    async def coin(self, message):
+        await self.mbot.send_message(
+            message.channel,
+            f'The coin landed **{random.choice(["heads", "tails"])}**!'
+        )
+
+    @command(regex='^8ball .+?$', name='8ball')
+    async def eight_ball(self, message):
+        response = random.choice([
+            'It is certain.',
+            'It is decidedly so.',
+            'Without a doubt.',
+            'Yes - definitely.',
+            'You may rely on it.',
+            'As I see it, yes.',
+            'Most likely.',
+            'Outlook good.',
+            'Yes.',
+            'Signs point to yes.',
+            'Reply hazy, try again.',
+            'Ask again later.',
+            'Better not tell you now.',
+            'Cannot predict now.',
+            'Concentrate and ask again.',
+            'Don\'t count on it.',
+            'My reply is no.',
+            'My sources say no.',
+            'Outlook not so good.',
+            'Very doubtful.'
+        ])
+
+        await self.mbot.send_message(message.channel, response)
