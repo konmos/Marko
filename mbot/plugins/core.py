@@ -48,8 +48,12 @@ class Core(BasePlugin):
         embed = discord.Embed(title='MarkoBot', colour=0x7289da)
         embed.set_thumbnail(url=app_info.icon_url)
 
-        embed.add_field(name='Language / Library', value=f'Python / discord.py ({discord.__version__})', inline=False)
         embed.add_field(name='Owner', value=f'{app_info.owner.name}#{app_info.owner.discriminator}')
+        embed.add_field(name='Language / Library', value=f'Python / discord.py ({discord.__version__})')
+        embed.add_field(
+            name='# Plugins / Commands',
+            value=f'{len(self.mbot.plugin_manager.plugins)} / {len(self.mbot.plugin_manager.commands)}'
+        )
         embed.add_field(name='Help Commands', value='help, commands, plugin')
         embed.add_field(name='Local Time', value=local_time, inline=False)
 
@@ -199,7 +203,7 @@ class Core(BasePlugin):
     @command(su=True, regex='^reset-configs$', name='reset-configs')
     async def reset_configs(self, message):
         ret = await self.mbot.plugin_manager.refresh_configs()
-        await self.mbot.send_message(message.channel, f':ok_hand: **Refreshed {ret.modified_count} configs.**')
+        await self.mbot.send_message(message.channel, f':ok_hand: **Reset {ret.modified_count} configs.**')
 
     @command(su=True, regex='^db (\w+?)\.(\w+?) (\w+?) (.+)$', name='db')
     async def run_db_op(self, message, db, col, op, data):
