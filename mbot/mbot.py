@@ -107,7 +107,50 @@ class mBot(discord.Client):
 
         return global_blacklist, local_blacklist
 
-    async def run_command(self, message, command):
+    async def run_command(self, message, cfg=None, fail_silently=False):
+        if cfg is None:
+            cfg = await self.mongo.config.find_one({'server_id': message.server.id})
+
+        matched_cmd = None
+
+        # Skip command if we are in an ignored channel...
+        if message.channel.id in cfg['ignored_channels']:
+            # ...Unless the user is an admin and runs either the `ignore` or `unignore` command.
+            if message.author.permissions_in(message.channel).administrator:
+                if not re.match('^ignore|unignore$', message.content):
+                    return
+            else:
+                return
+
+        if max(self.recent_commands.get(message.author.id, [0])) + 1 > time.time():
+            if not fail_silently:
+                await self.send_message(
+                    message.channel, f'**Whoah! You\'re doing that too often {message.author.name}!**'
+                )
+        else:
+            commands = await self.plugin_manager.commands_for_server(message.server.id)
+
+            for command in commands.values():
+                if command._pattern.match(message.content):
+                    self.loop.create_task(self._run_command(message, command, fail_silently=fail_silently))
+                    matched_cmd = command
+                    break  # Ignore possible name conflicts... Commands should have unique names!
+            else:
+                if not fail_silently:
+                    # No command patterns matched... Reply with a help message if the command exists.
+                    c = self.plugin_manager.command_from_string(message.content, False)
+                    if c and c.info['name'] in commands:
+                        await self.send_message(
+                            message.channel,
+                            f'*I couldn\'t understand that... :cry:\n'
+                            f'If you wanted to run **{c.info["name"]}** something went wrong...*\n'
+                            f'The correct usage is `{cfg["prefix"]}{c.info["usage"]}`. '
+                            f'For more help try running `{cfg["prefix"]}help {c.info["name"]}`.'
+                        )
+
+        return matched_cmd
+
+    async def _run_command(self, message, command, fail_silently=False):
         self.recent_commands[message.author.id].append(time.time())
 
         if command._mutex is not None:
@@ -122,16 +165,17 @@ class mBot(discord.Client):
                 finally:
                     self.mutexes[command._mutex].release()
             else:
-                m = await self.send_message(
-                    message.channel,
-                    f'{message.author.mention}\n'
-                    f'Could not run command `{command.info["name"]}` due to conflict with an already running command.'
-                    '\nPlease wait until the conflicting command finishes (this is most likely caused be a menu'
-                    ' that you forgot to close).'
-                )
+                if not fail_silently:
+                    m = await self.send_message(
+                        message.channel,
+                        f'{message.author.mention}\n'
+                        f'Could not run command `{command.info["name"]}` due to conflict '
+                        'with an already running command. \nPlease wait until the conflicting command finishes '
+                        '(this is most likely caused be a menu that you forgot to close).'
+                    )
 
-                await asyncio.sleep(8)
-                await self.delete_message(m)
+                    await asyncio.sleep(8)
+                    await self.delete_message(m)
         else:
             await command(message)
 
@@ -484,44 +528,12 @@ class mBot(discord.Client):
 
             message.content = cfg['prefix'] + _mention.groups()[0]
 
-        cmd, matched_cmd = False, None
+        matched_cmd = None
 
         if message.content.startswith(cfg['prefix']):
-            message.content, cmd = message.content[len(cfg['prefix']):], True
-
-        if cmd:
-            # Skip command if we are in an ignored channel...
-            if message.channel.id in cfg['ignored_channels']:
-                # ...Unless the user is an admin and runs either the `ignore` or `unignore` command.
-                if message.author.permissions_in(message.channel).administrator:
-                    if not re.match('^ignore|unignore$', message.content):
-                        return
-                else:
-                    return
-
-            if max(self.recent_commands.get(message.author.id, [0])) + 1 > time.time():
-                await self.send_message(
-                    message.channel, f'**Whoah! You\'re doing that too often {message.author.name}!**'
-                )
-            else:
-                commands = await self.plugin_manager.commands_for_server(message.server.id)
-
-                for command in commands.values():
-                    if command._pattern.match(message.content):
-                        self.loop.create_task(self.run_command(message, command))
-                        matched_cmd = command
-                        break  # Ignore possible name conflicts... Commands should have unique names!
-                else:
-                    # No command patterns matched... Reply with a help message if the command exists.
-                    c = self.plugin_manager.command_from_string(message.content, False)
-                    if c and c.info['name'] in commands:
-                        await self.send_message(
-                            message.channel,
-                            f'*I couldn\'t understand that... :cry:\n'
-                            f'If you wanted to run **{c.info["name"]}** something went wrong...*\n'
-                            f'The correct usage is `{cfg["prefix"]}{c.info["usage"]}`. '
-                            f'For more help try running `{cfg["prefix"]}help {c.info["name"]}`.'
-                        )
+            message.content = message.content[len(cfg['prefix']):]
+            matched_cmd = await self.run_command(message, cfg)
+            self.clean_commands_cache()
 
         plugins = await self.plugin_manager.plugins_for_server(message.server.id)
 
@@ -531,9 +543,6 @@ class mBot(discord.Client):
             # should be set to `True`.
             if matched_cmd is None or matched_cmd.info['plugin'] != plugin.__class__.__name__:
                 self.loop.create_task(plugin.on_message(message))
-
-        if cmd:
-            self.clean_commands_cache()
 
     async def on_socket_raw_receive(self, msg):
         '''Called whenever a message is received from the websocket.'''
