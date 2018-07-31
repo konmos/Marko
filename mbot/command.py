@@ -90,7 +90,7 @@ def command(*, regex='', usage='', description='', name='', call_on_message=Fals
                 return await self.mbot.send_message(message.channel, '*You cannot use NSFW commands here...*')
 
             # Check if the user has necessary permissions.
-            if check_perms and not self.mbot.perms_check(message.author, message.channel, perms, su):
+            if not self.mbot.perms_check(message.author, message.channel, perms if check_perms else None, su):
                 return await self.mbot.send_message(message.channel, '*You do not have permission to do that...*')
 
             try:
