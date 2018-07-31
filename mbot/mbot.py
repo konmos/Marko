@@ -107,7 +107,7 @@ class mBot(discord.Client):
 
         return global_blacklist, local_blacklist
 
-    async def run_command(self, message, cfg=None, fail_silently=False, check_perms=True):
+    async def run_command(self, message, cfg=None, fail_silently=False, check_perms=True, global_commands=False):
         if cfg is None:
             cfg = await self.mongo.config.find_one({'server_id': message.server.id})
 
@@ -128,7 +128,10 @@ class mBot(discord.Client):
                     message.channel, f'**Whoah! You\'re doing that too often {message.author.name}!**'
                 )
         else:
-            commands = await self.plugin_manager.commands_for_server(message.server.id)
+            if not global_commands:
+                commands = await self.plugin_manager.commands_for_server(message.server.id)
+            else:
+                commands = {x[0]: x[1][2] for x in self.plugin_manager.commands.items()}
 
             for command in commands.values():
                 if command._pattern.match(message.content):
