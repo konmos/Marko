@@ -39,7 +39,7 @@ def command(*, regex='', usage='', description='', name='', call_on_message=Fals
             pattern = re.compile(regex or f'^{name or func.__name__}$')
 
         @wraps(func)
-        async def wrapper(self, message):
+        async def wrapper(self, message, check_perms=True):
             match = pattern.match(message.content)
 
             # This is checked in the main loop anyway, but we'll check anyway in case
@@ -90,7 +90,7 @@ def command(*, regex='', usage='', description='', name='', call_on_message=Fals
                 return await self.mbot.send_message(message.channel, '*You cannot use NSFW commands here...*')
 
             # Check if the user has necessary permissions.
-            if not self.mbot.perms_check(message.author, message.channel, perms, su):
+            if check_perms and not self.mbot.perms_check(message.author, message.channel, perms, su):
                 return await self.mbot.send_message(message.channel, '*You do not have permission to do that...*')
 
             try:

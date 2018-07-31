@@ -107,7 +107,7 @@ class mBot(discord.Client):
 
         return global_blacklist, local_blacklist
 
-    async def run_command(self, message, cfg=None, fail_silently=False):
+    async def run_command(self, message, cfg=None, fail_silently=False, check_perms=True):
         if cfg is None:
             cfg = await self.mongo.config.find_one({'server_id': message.server.id})
 
@@ -132,7 +132,10 @@ class mBot(discord.Client):
 
             for command in commands.values():
                 if command._pattern.match(message.content):
-                    self.loop.create_task(self._run_command(message, command, fail_silently=fail_silently))
+                    self.loop.create_task(
+                        self._run_command(message, command, fail_silently=fail_silently, check_perms=check_perms)
+                    )
+
                     matched_cmd = command
                     break  # Ignore possible name conflicts... Commands should have unique names!
             else:
@@ -150,7 +153,7 @@ class mBot(discord.Client):
 
         return matched_cmd
 
-    async def _run_command(self, message, command, fail_silently=False):
+    async def _run_command(self, message, command, fail_silently=False, check_perms=True):
         self.recent_commands[message.author.id].append(time.time())
 
         if command._mutex is not None:
@@ -161,7 +164,7 @@ class mBot(discord.Client):
                 await self.mutexes[command._mutex].acquire()
 
                 try:
-                    await command(message)
+                    await command(message, check_perms)
                 finally:
                     self.mutexes[command._mutex].release()
             else:
@@ -177,7 +180,7 @@ class mBot(discord.Client):
                     await asyncio.sleep(8)
                     await self.delete_message(m)
         else:
-            await command(message)
+            await command(message, check_perms)
 
     async def update_stats(self, kwargs, scopes, op='$inc', query=None):
         '''
