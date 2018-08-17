@@ -10,6 +10,7 @@ praw
 zerorpc
 motor
 python-dateutil
+lark-parser
 
 # Wand also requires ImageMagick binaries
 Wand
