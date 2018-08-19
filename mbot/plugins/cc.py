@@ -11,6 +11,7 @@ from discord import Forbidden
 
 from ..plugin import BasePlugin
 from ..command import command
+from ..utils import long_running_task
 
 
 RESERVED_CHARS = {
@@ -141,6 +142,7 @@ class CustomCommands(BasePlugin):
         pattern = re.compile('|'.join(rep.keys()))
         return pattern.sub(lambda m: rep[re.escape(m.group(0))], string)
 
+    @long_running_task()
     def parse_cc(self, cmd_string, message, args):
         replacements = {
             '$(user.name)': message.author.name,
@@ -227,6 +229,8 @@ class CustomCommands(BasePlugin):
                     return
 
             elif token[0] == 'cmd':
+                await asyncio.sleep(1)
+
                 cmd = copy(message)
                 cmd.content = token[1]
                 await self.mbot.run_command(
@@ -271,7 +275,7 @@ class CustomCommands(BasePlugin):
             )
 
         cmd_string = doc['cmd_string']
-        parsed = self.parse_cc(cmd_string, message, shlex.split(args) if args else [])
+        parsed = await self.parse_cc(cmd_string, message, shlex.split(args) if args else [])
         self.mbot.loop.create_task(self.execute_cc(message, parsed))
 
     @command(regex='^cc-add (.*?)$', name='cc-add', perms=32)
@@ -298,7 +302,7 @@ class CustomCommands(BasePlugin):
 
         if cmd_string:
             try:
-                self.parse_cc(cmd_string.content, message, [])
+                await self.parse_cc(cmd_string.content, message, [])
             except ParsingError as e:
                 return await self.mbot.send_message(
                     message.channel,
@@ -307,9 +311,12 @@ class CustomCommands(BasePlugin):
                     f':exclamation: **ERROR**\n```{str(e)}```'
                 )
 
-            await self.cc_db.insert_one(
-                {'server_id': message.server.id, 'cmd_name': name, 'cmd_string': cmd_string.content}
-            )
+            await self.cc_db.insert_one({
+                'server_id': message.server.id,
+                'owner_id': message.author.id,
+                'cmd_name': name,
+                'cmd_string': cmd_string.content
+            })
 
             await self.mbot.send_message(
                 message.channel,
