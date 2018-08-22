@@ -6,8 +6,10 @@ from copy import copy
 # noinspection PyUnresolvedReferences
 from string import whitespace
 
-from lark import Lark, Transformer
 from discord import Forbidden
+from lark import Lark, Transformer
+from lark.exceptions import UnexpectedToken
+from lark.parsers.lalr_analysis import LALR_Analyzer, Shift
 
 from ..plugin import BasePlugin
 from ..command import command
@@ -68,8 +70,105 @@ GRAMMAR = r'''
     '''
 
 
+PRIVILEGED_RULES = ['cp_enable', 'cp_disable', 'gc_enable', 'gc_disable']
+PRIVILEGED_COMMANDS = ['check_perms', '!check_perms', 'global_commands', '!global_commands']
+
+
 class ParsingError(Exception):
     pass
+
+
+class MyParser(object):
+    def __init__(self, parser_conf):
+        assert all(r.options is None or r.options.priority is None
+                   for r in parser_conf.rules), 'LALR doesn\'t yet support prioritization'
+
+        analysis = LALR_Analyzer(parser_conf)
+        analysis.compute_lookahead()
+        callbacks = {rule: getattr(parser_conf.callback, rule.alias or rule.origin, None) for rule in parser_conf.rules}
+
+        self._parse_table = analysis.parse_table
+        self.parser_conf = parser_conf
+        self.parser = _MyParser(analysis.parse_table, callbacks)  # MONKEY PATCH
+        self.parse = self.parser.parse
+
+
+class _MyParser(object):
+    def __init__(self, parse_table, callbacks):
+        self.states = parse_table.states
+        self.start_state = parse_table.start_state
+        self.end_state = parse_table.end_state
+        self.callbacks = callbacks
+
+    def parse(self, seq, set_state=None):
+        i = 0
+        token = None
+        stream = iter(seq)
+        states = self.states
+
+        state_stack = [self.start_state]
+        value_stack = []
+
+        rules = set()  # MONKEY PATCH
+
+        if set_state:
+            set_state(self.start_state)
+
+        def get_action(key):
+            state = state_stack[-1]
+
+            try:
+                return states[state][key]
+            except KeyError:
+                expected = states[state].keys()
+                raise UnexpectedToken(token, expected, state=state)
+
+        def reduce(rule):
+            size = len(rule.expansion)
+
+            if size:
+                s = value_stack[-size:]
+                del state_stack[-size:]
+                del value_stack[-size:]
+            else:
+                s = []
+
+            # MONKEY PATCH
+            if not rule.origin.name.startswith('_'):
+                rules.add(rule.origin.name)
+
+            value = self.callbacks[rule](s)
+
+            _action, new_state = get_action(rule.origin.name)
+            assert _action is Shift
+            state_stack.append(new_state)
+            value_stack.append(value)
+
+        # Main LALR-parser loop
+        for i, token in enumerate(stream):
+            while True:
+                action, arg = get_action(token.type)
+                assert arg != self.end_state
+
+                if action is Shift:
+                    state_stack.append(arg)
+                    value_stack.append(token)
+
+                    if set_state:
+                        set_state(arg)
+
+                    break  # next token
+                else:
+                    reduce(arg)
+
+        while True:
+            _action, arg = get_action('$END')
+            if _action is Shift:
+                assert arg == self.end_state
+                val, = value_stack
+                return val, rules
+            else:
+                reduce(arg)
 
 
 class MyTransformer(Transformer):
@@ -132,8 +231,10 @@ class CustomCommands(BasePlugin):
     def __init__(self, mbot):
         super().__init__(mbot)
 
-        self.parser = Lark(GRAMMAR, parser='lalr', transformer=MyTransformer())
         self.cc_db = self.mbot.mongo.plugin_data.custom_commands
+
+        self.parser = Lark(GRAMMAR, parser='lalr', lexer='contextual', transformer=MyTransformer())
+        self.parser.parser.parser = MyParser(self.parser.parser.parser.parser_conf)  # MOKNEY PATCH
 
     @staticmethod
     def subs_vars(replacements, string):
@@ -183,7 +284,8 @@ class CustomCommands(BasePlugin):
         cmd_string = self.subs_vars(replacements, cmd_string)
 
         try:
-            return self.parser.parse(cmd_string).children
+            tree, rules = self.parser.parse(cmd_string)
+            return tree.children, rules
         except Exception as e:
             raise ParsingError(str(e))
 
@@ -275,7 +377,7 @@ class CustomCommands(BasePlugin):
             )
 
         cmd_string = doc['cmd_string']
-        parsed = await self.parse_cc(cmd_string, message, shlex.split(args) if args else [])
+        parsed, _ = await self.parse_cc(cmd_string, message, shlex.split(args) if args else [])
         self.mbot.loop.create_task(self.execute_cc(message, parsed))
 
     @command(regex='^cc-add (.*?)$', name='cc-add', perms=32)
@@ -302,7 +404,19 @@ class CustomCommands(BasePlugin):
 
         if cmd_string:
             try:
-                await self.parse_cc(cmd_string.content, message, [])
+                tokens, rules = await self.parse_cc(cmd_string.content, message, [])
+
+                if any([x in rules for x in PRIVILEGED_RULES]) and not self.mbot.perms_check(
+                        message.author, message.channel, required_perms=32
+                ):
+                    _ = '\n'.join(PRIVILEGED_COMMANDS)
+                    return await self.mbot.send_message(
+                        message.channel,
+                        '**There was an error while adding this command**\n\n'
+                        f'```{cmd_string.content}```\n:exclamation: **ERROR**'
+                        ' You do not have permission to use one or more of the following commands:'
+                        f'```{_}```'
+                    )
             except ParsingError as e:
                 return await self.mbot.send_message(
                     message.channel,

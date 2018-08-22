@@ -9,6 +9,7 @@
           <option value="bool.__await__" />
           <option value="list.__await__" />
           <option value="io.BytesIO.__await__" />
+          <option value="tuple.__await__" />
         </list>
       </option>
     </inspection_tool>
