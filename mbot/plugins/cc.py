@@ -176,31 +176,25 @@ class MyTransformer(Transformer):
         return ('block', *args)
 
     def if_stmt(self, args):
-        return (
-            'if',
-            CustomCommands.subs_vars(RESERVED_CHARS, args[0].value[1:-1]),
-            args[1].value,
-            CustomCommands.subs_vars(RESERVED_CHARS, args[2].value[1:-1]),
-            *args[3:]
-        )
+        return ('if', args[0].value[1:-1], args[1].value, args[2].value[1:-1], *args[3:])
 
     def speak(self, args):
         if args[0].type == 'TEXT':
-            return 'speak', CustomCommands.subs_vars(RESERVED_CHARS, args[0].value)
+            return 'speak', args[0].value
 
-        return 'speak', CustomCommands.subs_vars(RESERVED_CHARS, args[0][1:-1])
+        return 'speak', args[0][1:-1]
 
     def pm(self, args):
-        return 'pm', CustomCommands.subs_vars(RESERVED_CHARS, args[0][1:-1])
+        return 'pm', args[0][1:-1]
 
     def role(self, args):
-        return 'role', CustomCommands.subs_vars(RESERVED_CHARS, args[0].value[1:-1])
+        return 'role', args[0].value[1:-1]
 
     def perms(self, args):
         return 'perms', int(args[0], base=16)
 
     def command(self, args):
-        return 'cmd', CustomCommands.subs_vars(RESERVED_CHARS, args[0].value[1:-1])
+        return 'cmd', args[0].value[1:-1]
 
     def sleep(self, args):
         return 'sleep', min(int(args[0]), 10)
@@ -294,6 +288,9 @@ class CustomCommands(BasePlugin):
 
         for token in tokens:
             if token[0] == 'if':
+                token[1] = self.subs_vars(RESERVED_CHARS, token[1])
+                token[3] = self.subs_vars(RESERVED_CHARS, token[3])
+
                 bool_map = {
                     'eq': token[1] == token[3],
                     'ne': token[1] != token[3],
@@ -317,13 +314,17 @@ class CustomCommands(BasePlugin):
                 env = await self.execute_cc(message, [random.choice(token[1:])], env=env, _depth=_depth + 1)
 
             if token[0] == 'speak':
-                await self.mbot.send_message(message.channel, token[1])
+                await self.mbot.send_message(
+                    message.channel, self.subs_vars(RESERVED_CHARS, token[1])
+                )
 
             elif token[0] == 'pm':
-                await self.mbot.send_message(message.author, token[1])
+                await self.mbot.send_message(
+                    message.author, self.subs_vars(RESERVED_CHARS, token[1])
+                )
 
             elif token[0] == 'role':
-                if not any([role.name == token[1] for role in message.author.roles]):
+                if not any([role.name == self.subs_vars(RESERVED_CHARS, token[1]) for role in message.author.roles]):
                     return
 
             elif token[0] == 'perms':
@@ -334,7 +335,7 @@ class CustomCommands(BasePlugin):
                 await asyncio.sleep(1)
 
                 cmd = copy(message)
-                cmd.content = token[1]
+                cmd.content = self.subs_vars(RESERVED_CHARS, token[1])
                 await self.mbot.run_command(
                     cmd, fail_silently=True, check_perms=env['check_perms'], global_commands=env['global_commands']
                 )
