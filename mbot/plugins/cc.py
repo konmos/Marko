@@ -6,7 +6,7 @@ from copy import copy
 # noinspection PyUnresolvedReferences
 from string import whitespace
 
-from discord import Forbidden
+from discord import Forbidden, Embed
 from lark import Lark, Transformer
 from lark.exceptions import UnexpectedToken
 from lark.parsers.lalr_analysis import LALR_Analyzer, Shift
@@ -21,6 +21,7 @@ RESERVED_CHARS = {
     '$(lbrace)': '{',
     '$(rbrace)': '}',
     '$(quote)': '"',
+    '$(colon)': ':'
 }
 
 GRAMMAR = r'''
@@ -283,6 +284,39 @@ class CustomCommands(BasePlugin):
         except Exception as e:
             raise ParsingError(str(e))
 
+    def _build_embed(self, string):
+        if not string:
+            return
+
+        try:
+            e = Embed()
+
+            for field in string.split('::'):
+                key = self.subs_vars(RESERVED_CHARS, field.split(':', 1)[0]).strip()
+                value = self.subs_vars(RESERVED_CHARS, field.split(':', 1)[1]).strip()
+
+                if not key or not value:
+                    return
+
+                if key == '$$title':
+                    e.title = value
+                elif key == '$$description':
+                    e.description = value
+                elif key in ['$$color', '$$colour']:
+                    e.colour = int(value, base=16 if value.startswith('0x') else 10)
+                elif key == '$$thumbnail':
+                    e.set_thumbnail(url=value)
+                elif key == '$$image':
+                    e.set_image(url=value)
+                elif key == '$$footer':
+                    e.set_footer(text=value)
+                else:
+                    e.add_field(name=key, value=value)
+
+            return e
+        except:
+            return
+
     async def execute_cc(self, message, tokens, env=None, _depth=0):
         env = env or {'check_perms': True, 'global_commands': False}
 
@@ -314,11 +348,25 @@ class CustomCommands(BasePlugin):
                 env = await self.execute_cc(message, [random.choice(token[1:])], env=env, _depth=_depth + 1)
 
             if token[0] == 'speak':
+                if token[1].startswith('embed::'):
+                    embed = self._build_embed(token[1][7:])
+
+                    if embed is not None:
+                        await self.mbot.send_message(message.channel, embed=embed)
+                        continue
+
                 await self.mbot.send_message(
                     message.channel, self.subs_vars(RESERVED_CHARS, token[1])
                 )
 
             elif token[0] == 'pm':
+                if token[1].startswith('embed::'):
+                    embed = self._build_embed(token[1][7:])
+
+                    if embed is not None:
+                        await self.mbot.send_message(message.author, embed=embed)
+                        continue
+
                 await self.mbot.send_message(
                     message.author, self.subs_vars(RESERVED_CHARS, token[1])
                 )
