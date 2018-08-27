@@ -47,9 +47,9 @@ GRAMMAR = r'''
     speak: "{" "speak" ":" ESCAPED_STRING "}" | TEXT
     pm: "{" "pm" ":" ESCAPED_STRING "}"
     role: "{" "role" ":" ESCAPED_STRING "}"
-    perms: "{" "perms" ":" HEX "}"
+    perms: "{" "perms" ":" (INT | HEX) "}"
     command: "{" "cmd" ":" ESCAPED_STRING "}"
-    sleep: "{" "sleep" ":" INT "}"
+    sleep: "{" "sleep" ":" (INT | HEX) "}"
     cp_enable: "{" "check_perms" "}"
     cp_disable: "{" "!check_perms" "}"
     gc_enable: "{" "global_commands" "}"
@@ -61,7 +61,7 @@ GRAMMAR = r'''
     IF_OP: "eq" | "ne" | "in" | "not in" | "lt" | "gt" | "le" | "ge"
     CHAR: "a".."z" | "A".."Z" | "0".."9" | /[!\"#$%&\'()*+,\-.\/:<=>?@[\\\]\^_`\|~]/
     TEXT: CHAR (WS? CHAR)*
-    HEX: HEXDIGIT+
+    HEX: "0x" HEXDIGIT+
 
     %import common.ESCAPED_STRING
     %import common.HEXDIGIT
@@ -192,13 +192,13 @@ class MyTransformer(Transformer):
         return 'role', args[0].value[1:-1]
 
     def perms(self, args):
-        return 'perms', int(args[0], base=16)
+        return 'perms', int(args[0], base=16 if args[0].startswith('0x') else 10)
 
     def command(self, args):
         return 'cmd', args[0].value[1:-1]
 
     def sleep(self, args):
-        return 'sleep', min(int(args[0]), 10)
+        return 'sleep', min(int(args[0], base=16 if args[0].startswith('0x') else 10), 10)
 
     def cp_enable(self, *args):
         return 'check_perms', None
