@@ -23,8 +23,8 @@
 
 <div class="tab-content" id="v-pills-tabContent">
   <div class="tab-pane fade show active" id="nav-{{all_commands[0][0]}}" role="tabpanel" aria-labelledby="nav-{{all_commands[0][0]}}-tab">
-    <table class="table table-striped table-dark box-shadow">
-      <thead>
+    <table class="table table-striped table-dark box-shadow table-hover table-bordered">
+      <thead class="bg-blurple text-not-white">
         <tr>
           <th scope="col">Command</th>
           <th scope="col">Description</th>
@@ -36,7 +36,7 @@
       <tbody>
         {% for command in all_commands[0][1] %}
         <tr>
-          <th class="text-not-white" scope="row">{{ command }}</th>
+          <th class="text-grey" scope="row" style="font-weight: normal">{{ command }}</th>
           <td class="text-grey">{{ all_commands[0][1][command]["description"] }}</td>
           <td class="text-grey">{{ all_commands[0][1][command]["usage"] }}</td>
           <td><code>{{ all_commands[0][1][command]["regex"] }}</code></td>
@@ -48,8 +48,8 @@
 
   {% for commands in all_commands[1:] -%}
   <div class="tab-pane fade show" id="nav-{{commands[0]}}" role="tabpanel" aria-labelledby="nav-{{commands[0]}}-tab">
-    <table class="table table-striped table-dark box-shadow">
-      <thead>
+    <table class="table table-striped table-dark box-shadow table-hover table-bordered">
+      <thead class="bg-blurple text-not-white">
         <tr>
           <th scope="col">Command</th>
           <th scope="col">Description</th>
@@ -61,7 +61,7 @@
       <tbody>
         {% for command in commands[1] %}
         <tr>
-          <th class="text-not-white" scope="row">{{ command }}</th>
+          <th class="text-grey" scope="row" style="font-weight: normal">{{ command }}</th>
           <td class="text-grey">{{ commands[1][command]["description"] }}</td>
           <td class="text-grey">{{ commands[1][command]["usage"] }}</td>
           <td><code>{{ commands[1][command]["regex"] }}</code></td>
