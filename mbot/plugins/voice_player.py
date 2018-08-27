@@ -91,7 +91,8 @@ class Music(BasePlugin):
                     'duration': media_info.get('duration'),
                     'is_live': media_info.get('is_live') or False,
                     'user': user,
-                    'timestamp': time.time()
+                    'timestamp': time.time(),
+                    'thumbnail': media_info.get('thumbnail', None)
                 }}}
             )
 

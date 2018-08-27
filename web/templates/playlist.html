@@ -27,6 +27,11 @@
   <h6 class="border-bottom border-gray pb-2 mb-0">Queue</h6>
   {% for song in playlist['playlist'] -%}
   <div class="media text-muted pt-3 border-bottom border-gray">
+    {%- if song['thumbnail'] -%}
+    <img class="mr-2 rounded" src="{{song['thumbnail']}}" height="32">
+    {% else %}
+    <img class="mr-2 rounded" src="http://placehold.it/32x32">
+    {% endif %}
     <p class="media-body pb-3 mb-0 small lh-125">
       <strong class="d-block text-gray-dark"><a target="_blank" style="text-decoration: inherit; color: inherit;" href="{{song['url']}}">{{ song['title'] }}</a></strong>
       Added by {{song['user']}}
