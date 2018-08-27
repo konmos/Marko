@@ -18,7 +18,7 @@ class Reddit(BasePlugin):
         self.client_id = self.mbot.config.plugin_data.get('reddit', {}).get('client_id')
         self.client_secret = self.mbot.config.plugin_data.get('reddit', {}).get('client_secret')
 
-        self.user_agent = f'{os.name}:markobot.xyz:{self.client_id} (by /u/Kojak2)'
+        self.user_agent = f'{os.name}:markobot.xyz:{self.client_id} (/u/markothebot)'
 
         try:
             self.reddit = praw.Reddit(
