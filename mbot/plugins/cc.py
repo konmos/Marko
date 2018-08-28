@@ -348,8 +348,8 @@ class CustomCommands(BasePlugin):
                 env = await self.execute_cc(message, [random.choice(token[1:])], env=env, _depth=_depth + 1)
 
             if token[0] == 'speak':
-                if token[1].startswith('embed::'):
-                    embed = self._build_embed(token[1][7:])
+                if token[1].startswith('$$embed:'):
+                    embed = self._build_embed(token[1][8:])
 
                     if embed is not None:
                         await self.mbot.send_message(message.channel, embed=embed)
@@ -360,8 +360,8 @@ class CustomCommands(BasePlugin):
                 )
 
             elif token[0] == 'pm':
-                if token[1].startswith('embed::'):
-                    embed = self._build_embed(token[1][7:])
+                if token[1].startswith('$$embed:'):
+                    embed = self._build_embed(token[1][8:])
 
                     if embed is not None:
                         await self.mbot.send_message(message.author, embed=embed)
