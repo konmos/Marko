@@ -414,10 +414,9 @@ class CustomCommands(BasePlugin):
 
         return env
 
-    @command(regex='^cc (.*?)(?: (.*?))?$', name='cc')
-    async def run_cc(self, message, cmd, args=None):
+    async def _run_command(self, message, cmd_server_id, cmd, args=None):
         doc = await self.cc_db.find_one(
-            {'server_id': message.server.id, 'cmd_name': cmd}
+            {'server_id': cmd_server_id, 'cmd_name': cmd}
         )
 
         if not doc:
@@ -425,9 +424,27 @@ class CustomCommands(BasePlugin):
                 message.channel, '**I could not find that command...**'
             )
 
+        if doc['access'] == 'me' and message.author.id != doc['owner_id']:
+            return await self.mbot.send_message(message.channel, '*This command can only be used by it\'s author.*')
+        elif doc['access'] == 'local' and message.server.id != doc['server_id']:
+            return await self.mbot.send_message(message.channel, '*This command can only be used in it\'s server.*')
+
+        if doc['access'] == 'me' and message.author.id != doc['owner_id']:
+            return await self.mbot.send_message(
+                message.channel, '*This command can only be used by it\'s author.*'
+            )
+
         cmd_string = doc['cmd_string']
         parsed, _ = await self.parse_cc(cmd_string, message, shlex.split(args) if args else [])
         self.mbot.loop.create_task(self.execute_cc(message, parsed))
+
+    @command(regex='^cc (.*?)(?: (.*?))?$', name='cc')
+    async def run_cc(self, message, cmd, args=None):
+        await self._run_command(message, message.server.id, cmd, args)
+
+    @command(regex='^cc-run (\d*?) (.*?)(?: (.*?))?$', name='cc-run')
+    async def run_cc_extended(self, message, server_id, cmd, args=None):
+        await self._run_command(message, server_id, cmd, args)
 
     @command(regex='^cc-add (.*?)$', name='cc-add', perms=32)
     async def add_cc(self, message, name):
