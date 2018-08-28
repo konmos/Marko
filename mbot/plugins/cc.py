@@ -486,3 +486,55 @@ class CustomCommands(BasePlugin):
                 f'**Successfully added command `{name}`**!\n\n'
                 f'```{cmd_string.content}```'
             )
+
+    async def fetch_commands(self, page, server_id=None):
+        commands, query = [], {}
+
+        if server_id is not None:
+            query['server_id'] = server_id
+
+        async for trade in self.cc_db.find(query).skip(page * 8).limit(8):  # A page represents 8 records.
+            commands.append(trade)
+
+        return commands
+
+    @command(regex='^cc-list$', name='cc-list')
+    async def cc_list(self, message):
+        page = 0
+
+        while True:
+            commands = await self.fetch_commands(page, message.server.id)
+            next_page = await self.fetch_commands(page + 1, message.server.id)
+
+            if not commands:
+                return await self.mbot.send_message(
+                    message.channel, '**I couldn\'t find any commands.**'
+                )
+
+            options = {x['cmd_name'] + x['server_id']: x['cmd_name'] for x in commands}
+            option = await self.mbot.option_selector(
+                message,
+                f'**Custom Commands for `{message.server.name}`**\nEnter an option number to see more details.',
+                options=options, timeout=180, pp=page != 0, np=bool(next_page)
+            )
+
+            if not option:
+                return await self.mbot.send_message(
+                    message.channel, '**Closing menu.**'
+                )
+
+            if option == 'np':
+                page += 1
+            elif option == 'pp':
+                page -= 1
+            else:
+                cmd_map = {x['cmd_name'] + x['server_id']: x for x in commands}
+                cmd = cmd_map[option]
+
+                await self.mbot.send_message(
+                    message.author,
+                    f'**Custom Command - `{cmd["cmd_name"]}`**\n\n'
+                    f'  • Owner ID: {cmd["owner_id"]}\n'
+                    f'  • Server ID: {cmd["server_id"]}\n\n'
+                    f'**Command Script / Response**\n```{cmd["cmd_string"]}```'
+                )
