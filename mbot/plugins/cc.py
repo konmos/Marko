@@ -452,6 +452,30 @@ class CustomCommands(BasePlugin):
         )
 
         if cmd_string:
+            access, help_string, usage, = 'global', '', ''
+            lines = cmd_string.content.splitlines(True)
+            _meta_lines = 0
+
+            for x, line in enumerate(lines):
+                if line.strip().startswith('$$access:'):
+                    if line[9:].strip() in ['local', 'global', 'me']:
+                        access = line[9:].strip()
+
+                    _meta_lines += 1
+
+                elif line.strip().startswith('$$help:'):
+                    help_string = line[7:].strip()
+                    _meta_lines += 1
+
+                elif line.strip().startswith('$$usage'):
+                    usage = line[7:].strip()
+                    _meta_lines += 1
+
+                else:
+                    break  # Meta lines should only appear at the beginning of the string.
+
+            cmd_string.content = ''.join(lines[_meta_lines:])
+
             try:
                 tokens, rules = await self.parse_cc(cmd_string.content, message, [])
 
@@ -478,7 +502,10 @@ class CustomCommands(BasePlugin):
                 'server_id': message.server.id,
                 'owner_id': message.author.id,
                 'cmd_name': name,
-                'cmd_string': cmd_string.content
+                'cmd_string': cmd_string.content,
+                'access': access,
+                'help': help_string,
+                'usage': usage
             })
 
             await self.mbot.send_message(
