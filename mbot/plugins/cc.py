@@ -446,6 +446,26 @@ class CustomCommands(BasePlugin):
     async def run_cc_extended(self, message, server_id, cmd, args=None):
         await self._run_command(message, server_id, cmd, args)
 
+    @command(regex='^cc-info (.*?)(?: (\d*?))?$', name='cc-info')
+    async def cc_info(self, message, cmd, server_id=None):
+        doc = await self.cc_db.find_one(
+            {'server_id': server_id or message.server.id, 'cmd_name': cmd}
+        )
+
+        if not doc:
+            return await self.mbot.send_message(
+                message.channel, '**I could not find that command...**'
+            )
+
+        return await self.mbot.send_message(
+            message.channel,
+            f'**Info for custom command `{cmd}`**\n\n'
+            f'  • Command Owner -`{doc["owner_id"] or "-"}`\n'
+            f'  • Command Server -`{doc["server_id"] or "-"}`\n'
+            f'  • Help - `{doc["help"] or "-"}`\n'
+            f'  • Usage - `{doc["usage"] or "-"}`'
+        )
+
     @command(regex='^cc-add (.*?)$', name='cc-add', perms=32)
     async def add_cc(self, message, name):
         _p = f'[{re.escape(whitespace)}]'
