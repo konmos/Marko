@@ -562,13 +562,13 @@ class CustomCommands(BasePlugin):
 
         return commands
 
-    @command(regex='^cc-list$', name='cc-list')
-    async def cc_list(self, message):
+    @command(regex='^cc-list(?: (\d*?))?$', name='cc-list')
+    async def cc_list(self, message, server_id=None):
         page = 0
 
         while True:
-            commands = await self.fetch_commands(page, message.server.id)
-            next_page = await self.fetch_commands(page + 1, message.server.id)
+            commands = await self.fetch_commands(page, server_id or message.server.id)
+            next_page = await self.fetch_commands(page + 1, server_id or message.server.id)
 
             if not commands:
                 return await self.mbot.send_message(
@@ -578,7 +578,8 @@ class CustomCommands(BasePlugin):
             options = {x['cmd_name'] + x['server_id']: x['cmd_name'] for x in commands}
             option = await self.mbot.option_selector(
                 message,
-                f'**Custom Commands for `{message.server.name}`**\nEnter an option number to see more details.',
+                f'**Custom Commands for `{server_id or message.server.name}`**\n'
+                f'Enter an option number to see more details.',
                 options=options, timeout=180, pp=page != 0, np=bool(next_page)
             )
 
