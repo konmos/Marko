@@ -640,3 +640,20 @@ class CustomCommands(BasePlugin):
                     f'**Command Script / Response**\n'
                     f'```{script}```'
                 )
+
+    @command(regex='^cc-remove (.*?)(?: (\d*?))?$', name='cc-remove')
+    async def cc_remove(self, message, cmd, server_id=None):
+        ret = await self.cc_db.delete_one(
+            {'server_id': server_id or message.server.id, 'cmd_name': cmd, 'owner_id': message.author.id}
+        )
+
+        if ret.deleted_count != 1:
+            return await self.mbot.send_message(
+                message.channel,
+                f'**Could not delete the `{cmd}` command.**'
+            )
+
+        return await self.mbot.send_message(
+            message.channel,
+            f':ok_hand: **Successfully deleted the `{cmd}` command.**'
+        )
