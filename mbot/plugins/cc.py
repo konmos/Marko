@@ -542,7 +542,10 @@ class CustomCommands(BasePlugin):
                 'cmd_string': cmd_string.content,
                 'access': access,
                 'help': help_string,
-                'usage': usage
+                'usage': usage,
+                'restricted': 'perms' in rules or 'role' in rules,
+                'calls_external': 'command' in rules,
+                'privileged': any([x in rules for x in PRIVILEGED_RULES])
             })
 
             await self.mbot.send_message(
@@ -575,11 +578,35 @@ class CustomCommands(BasePlugin):
                     message.channel, '**I couldn\'t find any commands.**'
                 )
 
-            options = {x['cmd_name'] + x['server_id']: x['cmd_name'] for x in commands}
+            options = {}
+
+            for x in commands:
+                options[x['cmd_name'] + x['server_id']] = '{:<32} [{}]'.format(
+                    x['cmd_name'],
+                    (x['access'][0]) +
+                    ('h' if x['help'] else '-') +
+                    ('u' if x['usage'] else '-') +
+                    ('c' if x['calls_external'] else '-') +
+                    ('r' if x['restricted'] else '-') +
+                    ('p' if x['privileged'] else '-')
+
+                )
+
             option = await self.mbot.option_selector(
                 message,
                 f'**Custom Commands for `{server_id or message.server.name}`**\n'
                 f'Enter an option number to see more details.',
+                footer='**Command Metadata Explained**\n'
+                       '```[012345]\n\n'
+                       '  > [0] "g" if the command can be used globally, "l" if the command can only be used locally, '
+                       '"m" if the command can only be used by it\'s author, "-" otherwise.\n'
+                       '  > [1] "h" if the command has a help string, "-" otherwise.\n'
+                       '  > [2] "u" if the command has a usage string, "-" otherwise.\n'
+                       '  > [3] "c" if the command calls external bot commands ({cmd: ...}), "-" otherwise.\n'
+                       '  > [4] "r" if the command restricts it\'s usage to certain permissions or roles, '
+                       '"-" otherwise.\n'
+                       '  > [5] "p" if the command uses privileged commands ({check_perms}, {!check_perms},'
+                       '{global_commands}, {!global_commands}).```',
                 options=options, timeout=180, pp=page != 0, np=bool(next_page)
             )
 
@@ -596,10 +623,20 @@ class CustomCommands(BasePlugin):
                 cmd_map = {x['cmd_name'] + x['server_id']: x for x in commands}
                 cmd = cmd_map[option]
 
+                script = '<hidden>' if cmd['access'] == 'local' and message.server.id != cmd['server_id'] \
+                         or cmd['access'] == 'me' and message.author.id != cmd['owner_id'] \
+                         else cmd['cmd_string']
+
                 await self.mbot.send_message(
                     message.author,
                     f'**Custom Command - `{cmd["cmd_name"]}`**\n\n'
                     f'  • Owner ID: {cmd["owner_id"]}\n'
-                    f'  • Server ID: {cmd["server_id"]}\n\n'
-                    f'**Command Script / Response**\n```{cmd["cmd_string"]}```'
+                    f'  • Server ID: {cmd["server_id"]}\n'
+                    f'  • Help: {cmd["help"]}\n'
+                    f'  • Usage: {cmd["usage"]}\n'
+                    f'  • Restricted: {"yes" if cmd["restricted"] else "no"}\n'
+                    f'  • Privileged: {"yes" if cmd["privileged"] else "no"}\n'
+                    f'  • Calls external commands: {"yes" if cmd["calls_external"] else "no"}\n\n'
+                    f'**Command Script / Response**\n'
+                    f'```{script}```'
                 )
