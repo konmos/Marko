@@ -466,7 +466,56 @@ class CustomCommands(BasePlugin):
             f'  • Usage - `{doc["usage"] or "-"}`'
         )
 
-    @command(regex='^cc-add (.*?)$', name='cc-add', perms=32)
+    @staticmethod
+    def parse_metadata(cmd_string):
+        access, help_string, usage, = 'global', '', ''
+        lines = cmd_string.splitlines(True)
+        _meta_lines = 0
+
+        for x, line in enumerate(lines):
+            if line.strip().startswith('$$access:'):
+                if line[9:].strip() in ['local', 'global', 'me']:
+                    access = line[9:].strip()
+
+                _meta_lines += 1
+
+            elif line.strip().startswith('$$help:'):
+                help_string = line[7:].strip()
+                _meta_lines += 1
+
+            elif line.strip().startswith('$$usage'):
+                usage = line[7:].strip()
+                _meta_lines += 1
+
+            else:
+                break  # Meta lines should only appear at the beginning of the string.
+
+        return ''.join(lines[_meta_lines:]), access, help_string, usage
+
+    async def command_check(self, cmd_string, message):
+        try:
+            tokens, rules = await self.parse_cc(cmd_string, message, [])
+
+            if any([x in rules for x in PRIVILEGED_RULES]) and not self.mbot.perms_check(
+                    message.author, message.channel, required_perms=32
+            ):
+                _ = '\n'.join(PRIVILEGED_COMMANDS)
+                return (
+                    '**Something went wrong...**\n\n'
+                    f'```{cmd_string}```\n:exclamation: **ERROR**'
+                    ' You do not have permission to use one or more of the following commands:'
+                    f'```{_}```'
+                )
+        except ParsingError as e:
+            return (
+                '**Something went wrong...**\n\n'
+                f'```{cmd_string}```\n'
+                f':exclamation: **ERROR**\n```{str(e)}```'
+            )
+
+        return tokens, rules
+
+    @command(regex='^cc-add (.*?)$', name='cc-add')
     async def add_cc(self, message, name):
         _p = f'[{re.escape(whitespace)}]'
         name = re.sub(_p, '-', name)
@@ -489,51 +538,13 @@ class CustomCommands(BasePlugin):
         )
 
         if cmd_string:
-            access, help_string, usage, = 'global', '', ''
-            lines = cmd_string.content.splitlines(True)
-            _meta_lines = 0
+            cmd_string.content, access, help_string, usage = self.parse_metadata(cmd_string.content)
+            ret = await self.command_check(cmd_string.content, message)
 
-            for x, line in enumerate(lines):
-                if line.strip().startswith('$$access:'):
-                    if line[9:].strip() in ['local', 'global', 'me']:
-                        access = line[9:].strip()
-
-                    _meta_lines += 1
-
-                elif line.strip().startswith('$$help:'):
-                    help_string = line[7:].strip()
-                    _meta_lines += 1
-
-                elif line.strip().startswith('$$usage'):
-                    usage = line[7:].strip()
-                    _meta_lines += 1
-
-                else:
-                    break  # Meta lines should only appear at the beginning of the string.
-
-            cmd_string.content = ''.join(lines[_meta_lines:])
-
-            try:
-                tokens, rules = await self.parse_cc(cmd_string.content, message, [])
-
-                if any([x in rules for x in PRIVILEGED_RULES]) and not self.mbot.perms_check(
-                        message.author, message.channel, required_perms=32
-                ):
-                    _ = '\n'.join(PRIVILEGED_COMMANDS)
-                    return await self.mbot.send_message(
-                        message.channel,
-                        '**There was an error while adding this command**\n\n'
-                        f'```{cmd_string.content}```\n:exclamation: **ERROR**'
-                        ' You do not have permission to use one or more of the following commands:'
-                        f'```{_}```'
-                    )
-            except ParsingError as e:
-                return await self.mbot.send_message(
-                    message.channel,
-                    '**There was an error while adding this command**\n\n'
-                    f'```{cmd_string.content}```\n'
-                    f':exclamation: **ERROR**\n```{str(e)}```'
-                )
+            if isinstance(ret, str):
+                return await self.mbot.send_message(message.channel, ret)
+            else:
+                tokens, rules = ret
 
             await self.cc_db.insert_one({
                 'server_id': message.server.id,
@@ -657,3 +668,44 @@ class CustomCommands(BasePlugin):
             message.channel,
             f':ok_hand: **Successfully deleted the `{cmd}` command.**'
         )
+
+    @command(regex='^cc-edit (.*?)(?: (\d*?))?$', name='cc-edit')
+    async def cc_edit(self, message, cmd, server_id=None):
+        doc = await self.cc_db.find_one(
+            {'server_id': server_id or message.server.id, 'cmd_name': cmd, 'owner_id': message.author.id}
+        )
+
+        if not doc:
+            return await self.mbot.send_message(
+                message.channel, '**I could not find that command...**'
+            )
+
+        cmd_string = await self.mbot.wait_for_input(
+            message,
+            '**Please enter the new command script**\n'
+            'Note that you cannot modify command metadata here.\n\n'
+            f'The current script is:\n```{doc["cmd_string"]}```', timeout=180
+        )
+
+        if cmd_string:
+            ret = await self.command_check(cmd_string.content, message)
+
+            if isinstance(ret, str):
+                return await self.mbot.send_message(message.channel, ret)
+            else:
+                tokens, rules = ret
+
+            await self.cc_db.update_one(
+                {'server_id': server_id or message.server.id, 'cmd_name': cmd, 'owner_id': message.author.id},
+                {'$set': {
+                    'cmd_string': cmd_string.content,
+                    'restricted': 'perms' in rules or 'role' in rules,
+                    'calls_external': 'command' in rules,
+                    'privileged': any([x in rules for x in PRIVILEGED_RULES])}
+                }
+            )
+
+            await self.mbot.send_message(
+                message.channel,
+                '**Successfully updated the command script!**'
+            )
