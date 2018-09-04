@@ -565,24 +565,45 @@ class CustomCommands(BasePlugin):
                 f'```{cmd_string.content}```'
             )
 
-    async def fetch_commands(self, page, server_id=None):
-        commands, query = [], {}
-
-        if server_id is not None:
-            query['server_id'] = server_id
+    async def fetch_commands(self, page, query=None):
+        commands = []
+        query = query or {}
 
         async for trade in self.cc_db.find(query).skip(page * 8).limit(8):  # A page represents 8 records.
             commands.append(trade)
 
         return commands
 
-    @command(regex='^cc-list(?: (\d*?))?$', name='cc-list')
-    async def cc_list(self, message, server_id=None):
+    @command(regex='^cc-browse(?: (.*?))?$', name='cc-browse')
+    async def cc_browse(self, message, filters=None):
+        _q = {'server_id': message.server.id}
+
+        if filters:
+            for f in filters.split(' '):
+                try:
+                    key, val = f.split(':')
+                    key = key.strip()
+                except ValueError:
+                    return await self.mbot.send_message(
+                        message.channel, '**Invalid filter!**'
+                    )
+
+                if key not in ['owner_id', 'server_id', 'access', 'restricted', 'calls_external', 'privileged']:
+                    return await self.mbot.send_message(
+                        message.channel,
+                        f'**Unrecognised filter `{key}`!**'
+                    )
+
+                if key in ['restricted', 'calls_external', 'privileged'] and val in ['true', 'false']:
+                    _q[key] = False if val == 'false' else True
+                else:
+                    _q[key] = val
+
         page = 0
 
         while True:
-            commands = await self.fetch_commands(page, server_id or message.server.id)
-            next_page = await self.fetch_commands(page + 1, server_id or message.server.id)
+            commands = await self.fetch_commands(page, _q)
+            next_page = await self.fetch_commands(page + 1, _q)
 
             if not commands:
                 return await self.mbot.send_message(
@@ -605,7 +626,8 @@ class CustomCommands(BasePlugin):
 
             option = await self.mbot.option_selector(
                 message,
-                f'**Custom Commands for `{server_id or message.server.name}`**\n'
+                f'**Custom Commands for '
+                f'`{message.server.name if _q.get("server_id") == message.server.id else _q.get("server_id")}`**\n'
                 f'Enter an option number to see more details.',
                 footer='**Command Metadata Explained**\n'
                        '```[012345]\n\n'
