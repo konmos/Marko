@@ -1,7 +1,10 @@
 import json
+import random
 from datetime import datetime, timezone
 
 import aiohttp
+from discord import Embed
+from bs4 import BeautifulSoup
 
 from ..plugin import BasePlugin
 from ..command import command
@@ -60,13 +63,13 @@ class Anime(BasePlugin):
 
         query = '''
             query ($page: Int, $start: Int, $end: Int) {
-              Page(page: $page, perPage:25){
+              Page(page: $page, perPage: 25) {
                 pageInfo {
                   currentPage
                   lastPage
                 }
 
-                airingSchedules(airingAt_greater:$start, airingAt_lesser:$end, sort:TIME){
+                airingSchedules(airingAt_greater: $start, airingAt_lesser: $end, sort: TIME) {
                   episode
                   airingAt
                   media {
@@ -103,4 +106,169 @@ class Anime(BasePlugin):
 
         await self.mbot.send_message(
             message.channel, 'I could not find any anime airings.'
+        )
+
+    async def _get_media_embed(self, variables):
+        query = '''
+            query ($search: String, $id: Int, $mal: Int, $type: MediaType) {
+              Page(perPage: 1) {
+                media(search: $search, id: $id, idMal: $mal, type: $type) {
+                  id format idMal description status genres hashtag
+                  synonyms averageScore episodes duration source
+                  chapters volumes type
+                  startDate {
+                    year
+                    month
+                    day
+                  }
+                  endDate {
+                    year
+                    month
+                    day
+                  }
+                  coverImage {
+                    medium
+                  }
+                  title {
+                    romaji
+                    english
+                    native
+                  }
+                }
+              }
+            }'''
+
+        results = await self.anilist_query(query, variables, False)
+
+        if not results[0]['data'] or not results[0]['data']['Page']['media']:
+            return None
+
+        media = results[0]['data']['Page']['media'][0]
+
+        e = Embed(
+            title=f'{media["title"]["english"] or media["title"]["romaji"]} ({media["title"]["native"]})',
+            description=f'{BeautifulSoup(media["description"], "html.parser").get_text()}',
+            color=0x984e3 if media['type'] == 'ANIME' else 0x00b894
+        )
+
+        try:
+            start_date = datetime(
+                media['startDate']['year'], media['startDate']['month'], media['startDate']['day']
+            )
+        except (ValueError, TypeError):
+            start_date = ''
+
+        try:
+            end_date = datetime(
+                media['endDate']['year'], media['endDate']['month'], media['endDate']['day']
+            )
+        except (ValueError, TypeError):
+            end_date = ''
+
+        date_string = ''
+
+        if start_date:
+            date_string = start_date.strftime('%d %B %Y')
+
+            if end_date:
+                date_string += f' - {end_date.strftime("%d %B %Y")}'
+
+        e.set_thumbnail(url=media['coverImage']['medium'])
+
+        e.add_field(
+            name='Status',
+            value=f'{media["status"].capitalize().replace("_", " ")}'
+                  f'{(" [" + date_string + "]") if date_string else ""}'
+        )
+
+        if media['source']:
+            e.add_field(name='Source', value=media['source'].capitalize().replace('_', ' '))
+
+        if media['synonyms']:
+            e.add_field(name='AKA', value=', '.join(media['synonyms']))
+
+        e.add_field(name='Format', value=media['format'])
+        e.add_field(name='Genres', value=', '.join(media['genres']))
+
+        if media['type'] == 'ANIME':
+            e.add_field(name='Episodes', value=f'{media["episodes"] or "~"} ({media["duration"] or "~"} minutes/ep)')
+        else:
+            e.add_field(name='Volumes', value=f'{media["volumes"] or "~"} ({media["chapters"] or "~"} chapters)')
+
+        e.add_field(name='Average Score', value=f'{media["averageScore"] or "0"}%')
+
+        e.add_field(
+            name='Links',
+            value=f'[AniList](https://anilist.co/{"anime" if media["type"] == "ANIME" else "manga"}/{media["id"]}) - '
+                  f'[MAL](https://myanimelist.net/{"anime" if media["type"] == "ANIME" else "manga"}/{media["idMal"]})',
+            inline=False
+        )
+
+        if media['hashtag']:
+            e.set_footer(text=media['hashtag'])
+
+        return e
+
+    async def get_media_embed(self, query, media_type):
+        variables = {'type': media_type}
+
+        if query == 'random':
+            media_id = await self._get_random_media(media_type)
+            variables['id'] = media_id
+        elif query.startswith('title:'):
+            variables['search'] = query[6:].strip()
+        elif query.startswith('id:'):
+            variables['id'] = query[3:].strip()
+        elif query.startswith('mal:'):
+            variables['mal'] = query[4:].strip()
+        else:
+            variables['search'] = query
+
+        return await self._get_media_embed(variables)
+
+    async def _get_random_media(self, media_type):
+        query = '''
+            query ($type: MediaType, $page: Int) {
+              Page(page: $page, perPage: 1) {
+                pageInfo {
+                  currentPage
+                  lastPage
+                }
+
+                media(type: $type) {
+                  id
+                }
+              }
+            }'''
+
+        q = await self.anilist_query(query, {'type': media_type}, False)
+        page = random.randint(1, q[0]['data']['Page']['pageInfo']['lastPage'])
+
+        result = await self.anilist_query(query, {'type': media_type, 'page': page}, False)
+        return result[0]['data']['Page']['media'][0]['id']
+
+    @command(regex='^anime (.*?)$')
+    async def anime(self, message, query):
+        e = await self.get_media_embed(query, 'ANIME')
+
+        if not e:
+            return await self.mbot.send_message(
+                message.channel, '**I could not find any media matching that query...** :cry:'
+            )
+
+        await self.mbot.send_message(
+            message.channel, embed=e
+        )
+
+    @command(regex='^manga (.*?)$')
+    async def manga(self, message, query):
+        e = await self.get_media_embed(query, 'MANGA')
+
+        if not e:
+            return await self.mbot.send_message(
+                message.channel, '**I could not find any media matching that query...** :cry:'
+            )
+
+        await self.mbot.send_message(
+            message.channel, embed=e
         )
