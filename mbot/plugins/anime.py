@@ -1,9 +1,10 @@
 import json
 import random
+import asyncio
 from datetime import datetime, timezone
 
 import aiohttp
-from discord import Embed
+from discord import Embed, NotFound, HTTPException
 from bs4 import BeautifulSoup
 
 from ..plugin import BasePlugin
@@ -17,6 +18,12 @@ ANILIST_API = 'https://graphql.anilist.co'
 
 
 class Anime(BasePlugin):
+    def __init__(self, mbot):
+        super().__init__(mbot)
+
+        self.subs_db = self.mbot.mongo.plugin_data.anime_subs
+        self.mbot.loop.create_task(self.subscriber_loop())
+
     async def _do_anilist_query(self, url, query, variables):
         with aiohttp.ClientSession() as client:
             async with client.post(
@@ -40,7 +47,7 @@ class Anime(BasePlugin):
                 results.append(j)
                 current_page += 1
 
-        return results
+        return results or [{'data': None}]
 
     @staticmethod
     def calc_day_distance(start_weekday, human_day):
@@ -110,9 +117,9 @@ class Anime(BasePlugin):
 
     async def _get_media_embed(self, variables):
         query = '''
-            query ($search: String, $id: Int, $mal: Int, $type: MediaType) {
+            query ($search: String, $id: Int, $idMal: Int, $type: MediaType) {
               Page(perPage: 1) {
-                media(search: $search, id: $id, idMal: $mal, type: $type) {
+                media(search: $search, id: $id, idMal: $idMal, type: $type) {
                   id format idMal description status genres hashtag
                   synonyms averageScore episodes duration source
                   chapters volumes type
@@ -188,7 +195,9 @@ class Anime(BasePlugin):
             e.add_field(name='AKA', value=', '.join(media['synonyms']))
 
         e.add_field(name='Format', value=media['format'])
-        e.add_field(name='Genres', value=', '.join(media['genres']))
+
+        if media['genres']:
+            e.add_field(name='Genres', value=', '.join(media['genres']))
 
         if media['type'] == 'ANIME':
             e.add_field(name='Episodes', value=f'{media["episodes"] or "~"} ({media["duration"] or "~"} minutes/ep)')
@@ -209,22 +218,21 @@ class Anime(BasePlugin):
 
         return e
 
-    async def get_media_embed(self, query, media_type):
-        variables = {'type': media_type}
-
+    async def parse_query(self, query, media_type):
         if query == 'random':
-            media_id = await self._get_random_media(media_type)
-            variables['id'] = media_id
+            return {'id': await self._get_random_media(media_type)}
         elif query.startswith('title:'):
-            variables['search'] = query[6:].strip()
+            return {'search': query[6:].strip()}
         elif query.startswith('id:'):
-            variables['id'] = query[3:].strip()
+            return {'id': query[3:].strip()}
         elif query.startswith('mal:'):
-            variables['mal'] = query[4:].strip()
+            return {'idMal': query[4:].strip()}
         else:
-            variables['search'] = query
+            return {'search': query}
 
-        return await self._get_media_embed(variables)
+    async def get_media_embed(self, query, media_type):
+        q = await self.parse_query(query, media_type)
+        return await self._get_media_embed({**q, 'type': media_type})
 
     async def _get_random_media(self, media_type):
         query = '''
@@ -272,3 +280,190 @@ class Anime(BasePlugin):
         await self.mbot.send_message(
             message.channel, embed=e
         )
+
+    async def _update_episode(self, anilist_id):
+        await asyncio.sleep(60 * 5)
+
+        query = '''
+           query ($id: Int, $type: MediaType=ANIME) {
+             Page(perPage: 1){
+               media(id: $id, type: $type){
+                 nextAiringEpisode {
+                   episode airingAt
+                 }
+               }
+             }
+           }'''
+
+        result = await self.anilist_query(query, {'id': anilist_id}, False)
+
+        _data = result[0]['data']
+
+        if not _data or not _data['Page']['media'] or not _data['Page']['media'][0]['nextAiringEpisode']:
+            await self.subs_db.delete_one(
+                {'anilist_id': anilist_id}
+            )
+        else:
+            await self.subs_db.update_one(
+                {'anilist_id': anilist_id},
+                {'$set': {
+                    'next_ep': {
+                        'episode': _data['Page']['media'][0]['nextAiringEpisode']['episode'],
+                        'airing_at': _data['Page']['media'][0]['nextAiringEpisode']['airingAt']
+                    },
+                    'notified': False
+                }}
+            )
+
+    async def subscriber_loop(self):
+        await self.mbot.wait_until_ready()
+
+        while not self.mbot.is_closed:
+            tstamp = datetime.now(timezone.utc).timestamp()
+
+            async for document in self.subs_db.find({'next_ep.airing_at': {'$lte': tstamp + 60}, 'notified': False}):
+                for user in document['subs']:
+                    try:
+                        u = await self.mbot.get_user_info(user)
+                        e = Embed(
+                            description=f'Episode `{document["next_ep"]["episode"]}/{document["episodes"]}` of '
+                                        f'`{document["title"]["english"] or document["title"]["romaji"]}` is '
+                                        f'now airing!\n\n**Duration:** {document["duration"]} minutes.\n\n'
+                                        f'[AniList](https://anilist.co/anime/{document["anilist_id"]}) - '
+                                        f'[MAL](https://myanimelist.net/anime/{document["mal_id"]})'
+                            ,
+                            title=f'{document["title"]["english"] or document["title"]["romaji"]} '
+                                  f'({document["title"]["native"]})',
+                            color=0x984e3
+                            )
+
+                        if document['image']:
+                            e.set_thumbnail(url=document['image'])
+
+                        e.timestamp = datetime.now(timezone.utc)
+                        self.mbot.loop.create_task(self.mbot.send_message(u, embed=e))
+                    except (NotFound, HTTPException):
+                        pass
+
+                    await self.subs_db.update_one(
+                        {'anilist_id': document['anilist_id']},
+                        {'$set': {'notified': True}}
+                    )
+
+                    self.mbot.loop.create_task(self._update_episode(document['anilist_id']))
+
+            await asyncio.sleep(60)
+
+    async def _subscribe_to_anime(self, query, user_id):
+        variables = await self.parse_query(query, 'ANIME')
+
+        query = '''
+            query ($search: String, $id: Int, $idMal: Int, $type: MediaType=ANIME) {
+              Page(perPage: 1){
+                media(search: $search, id: $id, idMal: $idMal, type: $type){
+                  id episodes idMal duration
+                  nextAiringEpisode {
+                    episode airingAt
+                  }
+                  title {
+                    romaji english native
+                  }
+                  coverImage {
+                    medium
+                  }
+                }
+              }
+            }'''
+
+        results = await self.anilist_query(query, variables, False)
+
+        if not results[0]['data'] or not results[0]['data']['Page']['media']:
+            return
+
+        media = results[0]['data']['Page']['media'][0]
+
+        if not media['nextAiringEpisode']:
+            return
+
+        ret = await self.subs_db.update_one(
+            {'anilist_id': media['id']},
+            {
+                '$setOnInsert': {
+                    'mal_id': media['idMal'],
+                    'notified': False,
+                    'image': media['coverImage']['medium'],
+                    'duration': media['duration'],
+                    'title': {
+                        'romaji': media['title']['romaji'],
+                        'english': media['title']['english'],
+                        'native': media['title']['native']
+                    },
+                    'next_ep': {
+                        'episode': media['nextAiringEpisode']['episode'],
+                        'airing_at': media['nextAiringEpisode']['airingAt']
+                    },
+                    'episodes': media['episodes']
+                },
+                '$addToSet': {'subs': user_id}
+            },
+            upsert=True
+        )
+
+        if ret.modified_count == 1 or ret.upserted_id is not None:
+            return media
+
+    @command(regex='^subscribe (.*?)$')
+    async def subscribe(self, message, query):
+        media = await self._subscribe_to_anime(query, message.author.id)
+
+        if media is None:
+            return await self.mbot.send_message(
+                message.channel,
+                '**Could not subscribe to this anime.**'
+            )
+
+        await self.mbot.send_message(
+            message.channel,
+            f'**Successfully subscribed to `{media["title"]["english"] or media["title"]["romaji"]}`!**\n'
+            'You will be notified when new episodes of this anime air.'
+        )
+
+    async def _fetch_user_subs(self, user_id, page):
+        subs = []
+
+        async for sub in self.subs_db.find({'subs': user_id}).skip(page * 12).limit(12):
+            subs.append(sub)
+
+        return subs
+
+    @command()
+    async def mysubs(self, message):
+        page = 0
+
+        while True:
+            subs = await self._fetch_user_subs(message.author.id, page)
+            next_page = await self._fetch_user_subs(message.author.id, page + 1)
+
+            # noinspection PyUnresolvedReferences
+            m = '\n'.join(
+                [f'{sub["title"]["english"] or sub ["title"]["romaji"]} ({sub["title"]["native"]})' for sub in subs]
+            )
+
+            if not next_page and page == 0:
+                return await self.mbot.send_message(
+                    message.channel, f'```{m}```'
+                )
+
+            option = await self.mbot.option_selector(
+                message, f'```{m}```', {}, timeout=30, pp=page != 0, np=bool(next_page)
+            )
+
+            if not option:
+                return await self.mbot.send_message(
+                    message.channel, '**Closing menu.**'
+                )
+
+            if option == 'np':
+                page += 1
+            elif option == 'pp':
+                page -= 1
