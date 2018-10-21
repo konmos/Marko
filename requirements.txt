@@ -5,10 +5,10 @@ beautifulsoup4
 imageio
 pillow
 pyyaml
-pymongo==3.5.0
+pymongo
 praw
 zerorpc
-motor==1.1
+motor
 python-dateutil
 lark-parser
 

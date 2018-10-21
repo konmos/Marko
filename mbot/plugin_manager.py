@@ -5,6 +5,7 @@ from string import whitespace
 from collections import defaultdict
 
 from discord import User
+from pymongo import UpdateMany
 from pymongo.errors import PyMongoError
 
 from .plugins import plugins
@@ -206,14 +207,14 @@ class PluginManager(object):
         filtered = [i for i in filter((lambda x: x in [p.__class__.__name__ for p in self.plugins]), plugins_list)]
 
         if filtered:
-            bulk = self.mbot.mongo.config.initialize_unordered_bulk_op()
+            bulk = []
 
             for plugin in filtered:
-                bulk.find({'plugins.name': {'$ne': plugin}}).update(
-                    {'$push': {'plugins': {'name': plugin, 'commands': []}}}
-                )
+                bulk.append(UpdateMany(
+                    {'plugins.name': {'$ne': plugin}}, {'$push': {'plugins': {'name': plugin, 'commands': []}}}
+                ))
 
-            return await bulk.execute()
+            return await self.mbot.mongo.config.bulk_write(bulk)
 
     def _plugin_for_cmd(self, command, ignore_aliases=True):
         '''
@@ -305,14 +306,15 @@ class PluginManager(object):
             if plugin:
                 cmd_list[plugin].append(command)
 
-        bulk = self.mbot.mongo.config.initialize_unordered_bulk_op()
+        bulk = []
 
         for pl in cmd_list:
-            bulk.find({'plugins': {'$elemMatch': {'name': pl}}}).update(
+            bulk.append(UpdateMany(
+                {'plugins': {'$elemMatch': {'name': pl}}},
                 {'$addToSet': {'plugins.$.commands': {'$each': cmd_list[pl]}}}
-            )
+            ))
 
-        return await bulk.execute()
+        return await self.mbot.mongo.config.bulk_write(bulk)
 
     async def disable_command(self, server_id, command, user_id=None):
         log.debug(f'disabling {command} command for server {server_id}')
@@ -350,14 +352,14 @@ class PluginManager(object):
             if plugin:
                 cmd_list[plugin].append(command)
 
-        bulk = self.mbot.mongo.config.initialize_unordered_bulk_op()
+        bulk = []
 
         for p in cmd_list:
-            bulk.find({'plugins': {'$elemMatch': {'name': p}}}).update(
-                {'$pull': {'plugins.$.commands': {'$in': cmd_list[p]}}}
-            )
+            bulk.append(UpdateMany(
+                {'plugins': {'$elemMatch': {'name': p}}}, {'$pull': {'plugins.$.commands': {'$in': cmd_list[p]}}}
+            ))
 
-        return await bulk.execute()
+        return await self.mbot.mongo.config.bulk_write(bulk)
 
     async def refresh_configs(self):
         plugin_data = []
