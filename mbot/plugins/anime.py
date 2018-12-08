@@ -1,16 +1,23 @@
 import json
 import random
+import logging
 import asyncio
 from datetime import datetime, timezone
 
 import aiohttp
+from pymongo import UpdateOne
 from discord import Embed, NotFound, HTTPException
 from bs4 import BeautifulSoup
 
 from ..plugin import BasePlugin
 from ..command import command
 
+
+log = logging.getLogger(__name__)
+
+USER_AGENT = 'Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:10.0) Gecko/20100101 Firefox/10.0'
 ANILIST_API = 'https://graphql.anilist.co'
+MAX_PAGE_LIMIT = 6
 
 
 # TODO: take rate limits into consideration
@@ -22,7 +29,10 @@ class Anime(BasePlugin):
         super().__init__(mbot)
 
         self.subs_db = self.mbot.mongo.plugin_data.anime_subs
+        self.acc_db = self.mbot.mongo.plugin_data.anime_accounts
+
         self.mbot.loop.create_task(self.subscriber_loop())
+        self.mbot.loop.create_task(self.account_sync_loop())
 
     async def _do_anilist_query(self, url, query, variables):
         with aiohttp.ClientSession() as client:
@@ -42,10 +52,15 @@ class Anime(BasePlugin):
             current_page = results[0]['data']['Page']['pageInfo']['currentPage']
             last_page = results[0]['data']['Page']['pageInfo']['lastPage']
 
-            while current_page != last_page:
+            while current_page < last_page and current_page <= MAX_PAGE_LIMIT:
                 j = await self._do_anilist_query(ANILIST_API, query, {**variables, 'page': current_page + 1})
                 results.append(j)
                 current_page += 1
+
+            if current_page != last_page:
+                log.error(
+                    f'failed to get all anilist pages [{query} {variables} {current_page} {last_page}]'
+                )
 
         return results or [{'data': None}]
 
@@ -354,10 +369,105 @@ class Anime(BasePlugin):
 
             await asyncio.sleep(60)
 
+    async def _sync(self, account, user_id):
+        if account.startswith('anilist/'):
+            source, anime = 'anilist', await self.get_user_anime_anilist(account[8:])
+        else:
+            source, anime = 'mal', await self.get_user_anime_mal(account[4:])
+
+        if anime:
+            await self._bulk_subscribe(anime, source, user_id)
+
+    async def account_sync_loop(self):
+        await self.mbot.wait_until_ready()
+
+        while not self.mbot.is_closed:
+            async for doc in self.acc_db.find():
+                for account in doc['linked_accounts']:
+                    self.mbot.loop.create_task(
+                        self._sync(account, doc['user_id'])
+                    )
+
+            await asyncio.sleep(24 * 60 * 60)
+
+    async def _bulk_subscribe(self, id_list, source, user_id):
+        # NOTE: `id_list` should not be a mix of anilist ID's and MAL ID's. It should be one or the other!!!
+        to_sub = []
+
+        for id_ in id_list:
+            _doc = await self.subs_db.find_one(
+                {'anilist_id' if source == 'anilist' else 'mal_id': id_}
+            )
+
+            if not _doc or user_id not in _doc['subs']:
+                to_sub.append(id_)
+
+        if not to_sub:
+            return
+
+        q = '''
+            query ($id_in: [Int], $idMal_in: [Int], $page: Int, $type: MediaType=ANIME) {
+              Page(page: $page, perPage: 25){
+                pageInfo {
+                  currentPage
+                  lastPage
+                }
+                media(id_in: $id_in, idMal_in: $idMal_in, type: $type){
+                  id episodes idMal duration
+                  nextAiringEpisode {
+                    episode airingAt
+                  }
+                  title {
+                    romaji english native
+                  }
+                  coverImage {
+                    medium
+                  }
+                }
+              }
+            }'''
+
+        variables = {'id_in' if source == 'anilist' else 'idMal_in': to_sub}
+        results = await self.anilist_query(q, variables)
+
+        if not results[0]['data'] or not results[0]['data']['Page']['media']:
+            return
+
+        bulk = []
+
+        for media in results[0]['data']['Page']['media']:
+            if media['nextAiringEpisode']:
+                bulk.append(UpdateOne(
+                    {'anilist_id': media['id']},
+                    {
+                        '$setOnInsert': {
+                            'mal_id': media['idMal'],
+                            'notified': False,
+                            'image': media['coverImage']['medium'],
+                            'duration': media['duration'],
+                            'title': {
+                                'romaji': media['title']['romaji'],
+                                'english': media['title']['english'],
+                                'native': media['title']['native']
+                            },
+                            'next_ep': {
+                                'episode': media['nextAiringEpisode']['episode'],
+                                'airing_at': media['nextAiringEpisode']['airingAt']
+                            },
+                            'episodes': media['episodes']
+                        },
+                        '$addToSet': {'subs': user_id}
+                    },
+                    upsert=True
+                ))
+
+        if bulk:
+            await self.subs_db.bulk_write(bulk)
+
     async def _subscribe_to_anime(self, query, user_id):
         variables = await self.parse_query(query, 'ANIME')
 
-        query = '''
+        q = '''
             query ($search: String, $id: Int, $idMal: Int, $type: MediaType=ANIME) {
               Page(perPage: 1){
                 media(search: $search, id: $id, idMal: $idMal, type: $type){
@@ -375,7 +485,7 @@ class Anime(BasePlugin):
               }
             }'''
 
-        results = await self.anilist_query(query, variables, False)
+        results = await self.anilist_query(q, variables, False)
 
         if not results[0]['data'] or not results[0]['data']['Page']['media']:
             return
@@ -467,3 +577,58 @@ class Anime(BasePlugin):
                 page += 1
             elif option == 'pp':
                 page -= 1
+
+    async def get_user_anime_anilist(self, username):
+        query = '''
+            query ($page: Int, $userName: String) {
+              Page(page: $page, perPage:25){
+                pageInfo {
+                  currentPage
+                  lastPage
+                }
+                
+                mediaList(userName: $userName, status: CURRENT){
+                  media{
+                    id  
+                  }
+                }
+              }
+            }
+            '''
+
+        anime_list = []
+        results = await self.anilist_query(query, {'page': 1, 'userName': username})
+
+        for page in results:
+            if not page['data'] or not page['data']['Page']['mediaList']:
+                continue
+
+            anime_list.extend(
+                x["media"]["id"] for x in page['data']['Page']['mediaList']
+            )
+
+        return anime_list
+
+    async def get_user_anime_mal(self, username):
+        with aiohttp.ClientSession(headers={'User-Agent': USER_AGENT}) as client:
+            async with client.get(f'https://myanimelist.net/animelist/{username}?status=1') as r:
+                html = await r.text()
+
+        soup = BeautifulSoup(html, 'html.parser')
+
+        try:
+            j = json.loads(soup.find(attrs={'class': 'list-table'})['data-items'])
+
+            return [entry["anime_id"] for entry in j]
+        except TypeError:
+            return []
+
+    @command(regex='^anime-link (.*?)$', name='anime-link')
+    async def account_link(self, message, uri):
+        await self.acc_db.update_one(
+            {'user_id': message.author.id},
+            {'$addToSet': {'linked_accounts': uri}},
+            upsert=True
+        )
+
+        await self._sync(uri, message.author.id)
